@@ -1,0 +1,1 @@
+ALTER TYPE atrativo_tipo ADD VALUE 'camping';
