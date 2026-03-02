@@ -98,7 +98,7 @@ export default function AtrativoDetalhe() {
     return (
       <div className="flex flex-col items-center justify-center gap-4 py-20">
         <p className="text-muted-foreground">Atrativo não encontrado.</p>
-        <Button variant="outline" onClick={() => navigate('/atrativos')}>
+        <Button variant="outline" onClick={() => navigate('/gestao/atrativos')}>
           <ArrowLeft className="h-4 w-4 mr-2" /> Voltar
         </Button>
       </div>
@@ -162,7 +162,7 @@ export default function AtrativoDetalhe() {
       {/* Header */}
       <div className="flex flex-col gap-3">
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon" className="shrink-0" onClick={() => navigate('/atrativos')}>
+          <Button variant="ghost" size="icon" className="shrink-0" onClick={() => navigate('/gestao/atrativos')}>
             <ArrowLeft className="h-5 w-5" />
           </Button>
           {canEditAtrativo && (

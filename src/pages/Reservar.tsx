@@ -1,5 +1,5 @@
 ﻿import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -88,6 +88,7 @@ function formatBrazilPhone(value: string): string {
 }
 
 export default function Reservar() {
+  const [searchParams] = useSearchParams();
   const [atrativos, setAtrativos] = useState<AtrativoOption[]>([]);
   const [selectedAtrativo, setSelectedAtrativo] = useState('');
   const [date, setDate] = useState<Date | undefined>();
@@ -109,6 +110,7 @@ export default function Reservar() {
   const { toast } = useToast();
   const { configs } = useConfiguracoes();
   const municipioId = import.meta.env.VITE_MUNICIPIO_ID as string | undefined;
+  const atrativoFromQuery = searchParams.get('atrativo');
 
   useEffect(() => {
     let ativo = true;
@@ -143,6 +145,9 @@ export default function Reservar() {
           }));
 
         setAtrativos(mapped);
+        if (atrativoFromQuery && mapped.some((a) => a.id === atrativoFromQuery)) {
+          setSelectedAtrativo(atrativoFromQuery);
+        }
       } catch (error: any) {
         if (!ativo) return;
         setAtrativos([]);
@@ -158,7 +163,7 @@ export default function Reservar() {
     return () => {
       ativo = false;
     };
-  }, [municipioId, toast]);
+  }, [municipioId, toast, atrativoFromQuery]);
 
   // Fetch quiosques for selected atrativo
   useEffect(() => {
@@ -207,6 +212,9 @@ export default function Reservar() {
   }, [selectedAtrativo, toast]);
 
   const atrativo = atrativos.find(a => a.id === selectedAtrativo);
+  const tituloTopo = atrativo
+    ? `Reserve sua visita - ${atrativo.nome}`
+    : 'Reserve sua visita ao atrativo';
   const isCamping = tipoReserva === 'camping';
   const quantidade = Math.max(0, adultos) + Math.max(0, criancas);
   const ocupacaoAtual = ocupacaoPeriodo ?? atrativo?.ocupacao_atual ?? 0;
@@ -458,7 +466,7 @@ export default function Reservar() {
 
         <div className="rounded-2xl border border-border bg-card p-5 sm:p-6 text-center">
           <h1 className="text-2xl sm:text-3xl font-heading font-bold text-foreground">
-            Reserve sua Visita ao Atrativo
+            {tituloTopo}
           </h1>
           <p className="text-muted-foreground mt-2 max-w-2xl mx-auto">
             Controle a data, número de visitantes e garanta uma experiência segura e sustentável.
