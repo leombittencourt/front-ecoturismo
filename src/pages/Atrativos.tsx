@@ -73,7 +73,7 @@ export default function Atrativos() {
         {atrativos.map(a => {
           const Icon = tipoIcons[a.tipo] || MapPin;
           return (
-            <Card key={a.id} className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => navigate(`/atrativos/${a.id}`)}>
+            <Card key={a.id} className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => navigate(`/gestao/atrativos/${a.id}`)}>
               <CardContent className="p-5 space-y-4">
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-3">

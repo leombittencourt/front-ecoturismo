@@ -30,7 +30,7 @@ import { Button } from '@/components/ui/button';
 
 const prefeituraItems = [
   { title: 'Dashboard', url: '/dashboard', icon: LayoutDashboard },
-  { title: 'Atrativos', url: '/atrativos', icon: MapPin },
+  { title: 'Atrativos', url: '/gestao/atrativos', icon: MapPin },
   { title: 'Quiosques', url: '/quiosques', icon: LayoutGrid },
   { title: 'Analytics', url: '/analytics', icon: BarChart3 },
   { title: 'Relatorios', url: '/relatorios', icon: FileText },
@@ -39,13 +39,13 @@ const prefeituraItems = [
 
 const balnearioItems = [
   { title: 'Painel de Validacao', url: '/balneario', icon: Droplets },
-  { title: 'Atrativos', url: '/atrativos', icon: MapPin },
+  { title: 'Atrativos', url: '/gestao/atrativos', icon: MapPin },
   { title: 'Quiosques', url: '/quiosques', icon: LayoutGrid },
 ];
 
 const adminItems = [
   { title: 'Dashboard', url: '/dashboard', icon: LayoutDashboard },
-  { title: 'Atrativos', url: '/atrativos', icon: MapPin },
+  { title: 'Atrativos', url: '/gestao/atrativos', icon: MapPin },
   { title: 'Quiosques', url: '/quiosques', icon: LayoutGrid },
   { title: 'Analytics', url: '/analytics', icon: BarChart3 },
   { title: 'Relatorios', url: '/relatorios', icon: FileText },

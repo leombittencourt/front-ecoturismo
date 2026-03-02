@@ -14,6 +14,8 @@ import Login from "@/pages/Login";
 import Dashboard from "@/pages/Dashboard";
 import Atrativos from "@/pages/Atrativos";
 import AtrativoDetalhe from "@/pages/AtrativoDetalhe";
+import AtrativosPublicos from "@/pages/AtrativosPublicos";
+import AtrativoDestino from "@/pages/AtrativoDestino";
 import Reservar from "@/pages/Reservar";
 import TicketPublico from "@/pages/TicketPublico";
 import Analytics from "@/pages/Analytics";
@@ -53,6 +55,8 @@ const App = () => (
             <Routes>
               {/* Public routes */}
               <Route path="/" element={<Index />} />
+              <Route path="/atrativos" element={<AtrativosPublicos />} />
+              <Route path="/atrativos/:slug" element={<AtrativoDestino />} />
               <Route path="/reservar" element={<Reservar />} />
               <Route path="/ticket/:token" element={<TicketPublico />} />
               <Route path="/login" element={<Login />} />
@@ -61,8 +65,8 @@ const App = () => (
               {/* Protected routes */}
               <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
                 <Route path="/dashboard" element={<Dashboard />} />
-                <Route path="/atrativos" element={<Atrativos />} />
-                <Route path="/atrativos/:id" element={<AtrativoDetalhe />} />
+                <Route path="/gestao/atrativos" element={<Atrativos />} />
+                <Route path="/gestao/atrativos/:id" element={<AtrativoDetalhe />} />
                 <Route path="/analytics" element={<Analytics />} />
                 <Route path="/relatorios" element={<Relatorios />} />
                 <Route path="/quiosques" element={<Quiosques />} />
