@@ -16,6 +16,9 @@ import {
   type AtualizarQuiosqueRequest,
   type CriarQuiosqueRequest,
   type AtualizarPosicaoQuiosqueRequest,
+  type UploadImagensAtrativoRequest,
+  type ReordenarImagensAtrativoRequestItem,
+  type CriarAtrativoRequest,
 } from "@/services/apiClient";
 
 import type { DashboardData } from '@/types/dashboard';
@@ -106,8 +109,31 @@ export async function fetchAtrativo(id: string): Promise<Atrativo | undefined> {
   return apiClient.obterAtrativo(id);
 }
 
+export async function criarAtrativo(body: CriarAtrativoRequest): Promise<Atrativo> {
+  return apiClient.criarAtrativo(body);
+}
+
 export async function atualizarAtrativo(id: string, body: Partial<Atrativo>): Promise<void> {
   return apiClient.atualizarAtrativo(id, body);
+}
+
+export async function uploadImagensAtrativo(id: string, payload: UploadImagensAtrativoRequest): Promise<void> {
+  await apiClient.uploadImagensAtrativo(id, payload);
+}
+
+export async function removerImagemAtrativo(atrativoId: string, imagemId: string): Promise<void> {
+  await apiClient.removerImagemAtrativo(atrativoId, imagemId);
+}
+
+export async function definirImagemPrincipalAtrativo(atrativoId: string, imagemId: string): Promise<void> {
+  await apiClient.definirImagemPrincipalAtrativo(atrativoId, imagemId);
+}
+
+export async function reordenarImagensAtrativo(
+  atrativoId: string,
+  imagens: ReordenarImagensAtrativoRequestItem[]
+): Promise<void> {
+  await apiClient.reordenarImagensAtrativo(atrativoId, imagens);
 }
 
 export async function fetchQuiosques(atrativoId: string): Promise<QuiosqueDto[]> {

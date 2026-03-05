@@ -13,16 +13,52 @@ type DestinoStatus = 'disponivel' | 'quase-cheio' | 'lotado';
 
 function formatTipo(tipo: string): string {
   const normalized = tipo.toLowerCase().trim();
+  if (normalized === '1') return 'Balneário';
+  if (normalized === '2') return 'Cachoeira';
+  if (normalized === '3') return 'Trilha';
+  if (normalized === '4') return 'Parque';
+  if (normalized === '5') return 'Fazenda Ecoturismo';
   if (normalized === 'balneario') return 'Balneário';
   if (normalized === 'cachoeira') return 'Cachoeira';
   if (normalized === 'trilha') return 'Trilha';
   if (normalized === 'parque') return 'Parque';
+  if (
+    normalized === 'fazenda-ecoturismo' ||
+    normalized === 'fazenda ecoturismo' ||
+    normalized === 'fazendaecoturismo' ||
+    normalized === 'fazenda'
+  ) {
+    return 'Fazenda Ecoturismo';
+  }
   return tipo ? `${tipo.charAt(0).toUpperCase()}${tipo.slice(1)}` : 'Atrativo';
 }
 
 function toNumber(value: unknown): number {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function buildGoogleMapsExternalUrl(params: {
+  nome?: string;
+  endereco?: string;
+  latitude?: number;
+  longitude?: number;
+}) {
+  const nome = String(params.nome ?? '').trim();
+  const endereco = String(params.endereco ?? '').trim();
+  const latitude = params.latitude;
+  const longitude = params.longitude;
+
+  const query = [nome, endereco].filter(Boolean).join(', ').trim();
+  if (query) {
+    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
+  }
+
+  if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
+    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${latitude},${longitude}`)}`;
+  }
+
+  return '';
 }
 
 function getStatus(ocupacaoAtual: number, capacidadeTotal: number): DestinoStatus {
@@ -54,7 +90,9 @@ type DestinoViewModel = {
   bannerUrl: string;
   galeria: string[];
   videoUrl?: string;
-  mapUrl?: string;
+  endereco?: string;
+  latitude?: number;
+  longitude?: number;
   descricao: PublicAtrativo['descricao'];
   tecnico: PublicAtrativo['tecnico'];
   ocupacaoAtual: number;
@@ -72,7 +110,9 @@ function buildFromPublicAtrativo(spot: PublicAtrativo): DestinoViewModel {
     bannerUrl: spot.imagemUrl,
     galeria: [spot.imagemUrl, ...PUBLIC_ATRATIVOS.filter((x) => x.slug !== spot.slug).slice(0, 3).map((x) => x.imagemUrl)],
     videoUrl: spot.videoUrl,
-    mapUrl: spot.mapUrl,
+    endereco: '',
+    latitude: undefined,
+    longitude: undefined,
     descricao: spot.descricao,
     tecnico: spot.tecnico,
     ocupacaoAtual: 0,
@@ -110,27 +150,58 @@ export default function AtrativoDestino() {
           .find((a: any) => slugifyAtrativo(String(a.nome ?? '')) === slug);
 
         if (found) {
-          const nome = String(found.nome ?? 'Atrativo');
-          const tipo = String(found.tipo ?? found.Tipo ?? 'Atrativo');
-          const capacidadeTotal = Math.max(0, toNumber(found.capacidadeMaxima ?? found.capacidade_maxima ?? found.CapacidadeMaxima));
-          const ocupacaoAtual = Math.max(0, toNumber(found.ocupacaoAtual ?? found.ocupacao_atual ?? found.OcupacaoAtual));
+          const atrativoId = String(found.id ?? '');
+          const detalheAtrativo = atrativoId ? await apiClient.obterAtrativo(atrativoId).catch(() => null) : null;
+          const nome = String(detalheAtrativo?.nome ?? found.nome ?? 'Atrativo');
+          const tipo = String(detalheAtrativo?.tipo ?? found.tipo ?? found.Tipo ?? 'Atrativo');
+          const capacidadeTotal = Math.max(
+            0,
+            toNumber(detalheAtrativo?.capacidadeMaxima ?? found.capacidadeMaxima ?? found.capacidade_maxima ?? found.CapacidadeMaxima)
+          );
+          const ocupacaoAtual = Math.max(
+            0,
+            toNumber(detalheAtrativo?.ocupacaoAtual ?? found.ocupacaoAtual ?? found.ocupacao_atual ?? found.OcupacaoAtual)
+          );
           const status = getStatus(ocupacaoAtual, capacidadeTotal);
           const fallbackBySlug = PUBLIC_ATRATIVOS.find((x) => x.slug === slugifyAtrativo(nome)) ?? PUBLIC_ATRATIVOS[0];
-          const municipioNome = String(found.municipioNome ?? found.municipio_nome ?? found.municipio ?? 'Rio Verde de Mato Grosso - MS');
-          const imagem = String(found.imagemUrl ?? found.imagem_url ?? found.imagem ?? fallbackBySlug.imagemUrl);
+          let municipioNome = String(found.municipioNome ?? found.municipio_nome ?? found.municipio ?? '');
+          if (!municipioNome && detalheAtrativo?.municipioId) {
+            try {
+              const municipio = await apiClient.getMunicipio(String(detalheAtrativo.municipioId));
+              municipioNome = `${municipio.nome}${municipio.uf ? ` - ${municipio.uf}` : ''}`;
+            } catch {
+              municipioNome = 'Rio Verde de Mato Grosso - MS';
+            }
+          }
+          if (!municipioNome) municipioNome = 'Rio Verde de Mato Grosso - MS';
+
+          const imagensDetalhe = (detalheAtrativo?.imagens ?? [])
+            .slice()
+            .sort((a, b) => {
+              if (a.principal && !b.principal) return -1;
+              if (!a.principal && b.principal) return 1;
+              return a.ordem - b.ordem;
+            })
+            .map((img) => img.url)
+            .filter(Boolean);
+
+          const imagemPrincipal = imagensDetalhe[0]
+            || String(detalheAtrativo?.imagem ?? found.imagemUrl ?? found.imagem_url ?? found.imagem ?? fallbackBySlug.imagemUrl);
 
           setDestino({
-            id: String(found.id ?? ''),
+            id: atrativoId || String(detalheAtrativo?.id ?? ''),
             slug: slugifyAtrativo(nome),
             nome,
             municipio: municipioNome,
             categoria: formatTipo(tipo),
-            bannerUrl: imagem,
-            galeria: [imagem, ...PUBLIC_ATRATIVOS.filter((x) => x.slug !== fallbackBySlug.slug).slice(0, 3).map((x) => x.imagemUrl)],
+            bannerUrl: imagemPrincipal,
+            galeria: imagensDetalhe.length > 0 ? imagensDetalhe : [imagemPrincipal],
             videoUrl: fallbackBySlug.videoUrl,
-            mapUrl: fallbackBySlug.mapUrl,
+            endereco: detalheAtrativo?.endereco || '',
+            latitude: detalheAtrativo?.latitude,
+            longitude: detalheAtrativo?.longitude,
             descricao: {
-              oQueE: String(found.descricao ?? found.Descricao ?? fallbackBySlug.descricao.oQueE),
+              oQueE: String(detalheAtrativo?.descricao ?? found.descricao ?? found.Descricao ?? fallbackBySlug.descricao.oQueE),
               experiencia: fallbackBySlug.descricao.experiencia,
               historia: fallbackBySlug.descricao.historia,
               sustentabilidade: fallbackBySlug.descricao.sustentabilidade,
@@ -183,6 +254,16 @@ export default function AtrativoDestino() {
   }, [lightboxOpen, activePhotoIndex, destino]);
 
   const status = useMemo(() => statusUi(destino?.status ?? 'disponivel'), [destino?.status]);
+  const googleMapsUrl = useMemo(
+    () =>
+      buildGoogleMapsExternalUrl({
+        nome: destino?.nome,
+        endereco: destino?.endereco,
+        latitude: destino?.latitude,
+        longitude: destino?.longitude,
+      }),
+    [destino?.nome, destino?.endereco, destino?.latitude, destino?.longitude]
+  );
   const reservaHref = destino?.id ? `/reservar?atrativo=${encodeURIComponent(destino.id)}` : '/reservar';
   const ocupacaoPercent = useMemo(() => {
     if (!destino) return 0;
@@ -326,15 +407,23 @@ export default function AtrativoDestino() {
                   <Map className="h-4 w-4 text-primary/80" />
                   <p className="text-xs font-medium tracking-wide uppercase">Mapa</p>
                 </div>
-                {destino.mapUrl ? (
-                  <div className="aspect-video overflow-hidden rounded-lg mt-auto">
-                    <iframe src={destino.mapUrl} title={`Mapa ${destino.nome}`} className="w-full h-full" loading="lazy" />
+                <div className="mt-auto rounded-lg border border-border p-4 space-y-3">
+                  <div>
+                    <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Nome</p>
+                    <p className="text-sm text-foreground">{destino.nome}</p>
                   </div>
-                ) : (
-                  <div className="mt-auto rounded-lg border border-dashed border-border p-4">
-                    <p className="text-sm text-muted-foreground">Mapa não informado para este atrativo.</p>
+                  <div>
+                    <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Endereco</p>
+                    <p className="text-sm text-foreground">{destino.endereco || 'Nao informado'}</p>
                   </div>
-                )}
+                  {googleMapsUrl ? (
+                    <a href={googleMapsUrl} target="_blank" rel="noopener noreferrer" className="inline-block">
+                      <Button size="sm" variant="outline">Abrir no Google Maps</Button>
+                    </a>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">Localizacao nao disponivel para abrir no mapa.</p>
+                  )}
+                </div>
               </CardContent>
             </Card>
           </div>

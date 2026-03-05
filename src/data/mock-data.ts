@@ -18,7 +18,7 @@ export interface Municipio {
 export interface Atrativo {
   id: string;
   nome: string;
-  tipo: 'balneario' | 'cachoeira' | 'trilha' | 'parque';
+  tipo: 'balneario' | 'cachoeira' | 'trilha' | 'parque' | 'fazenda-ecoturismo';
   municipioId: string;
   capacidadeMaxima: number;
   ocupacaoAtual: number;

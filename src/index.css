@@ -122,6 +122,62 @@
     font-family: 'Montserrat', sans-serif;
   }
 
+  /* Sidebar menu scrollbar: subtle on desktop, hidden on mobile */
+  .sidebar-content-scroll {
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--sidebar-primary) / 0.45) transparent;
+  }
+
+  .sidebar-content-scroll::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  .sidebar-content-scroll::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .sidebar-content-scroll::-webkit-scrollbar-thumb {
+    background: hsl(var(--sidebar-primary) / 0.4);
+    border-radius: 999px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+
+  .sidebar-content-scroll::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--sidebar-primary) / 0.6);
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+
+  .sidebar-content-fade {
+    -webkit-mask-image: linear-gradient(
+      to bottom,
+      transparent 0,
+      black 16px,
+      black calc(100% - 16px),
+      transparent 100%
+    );
+    mask-image: linear-gradient(
+      to bottom,
+      transparent 0,
+      black 16px,
+      black calc(100% - 16px),
+      transparent 100%
+    );
+  }
+
+  @media (max-width: 768px) {
+    .sidebar-content-scroll {
+      scrollbar-width: none;
+    }
+
+    .sidebar-content-scroll::-webkit-scrollbar {
+      width: 0;
+      height: 0;
+    }
+  }
+
   /* PWA standalone safe area padding */
   @supports (padding: env(safe-area-inset-top)) {
     body {

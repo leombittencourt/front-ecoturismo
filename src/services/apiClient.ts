@@ -115,14 +115,70 @@ export type UploadLogoMunicipioResponse =
 export interface Atrativo {
   id: string;
   nome: string;
-  tipo: 'balneario' | 'cachoeira' | 'trilha' | 'parque';
+  tipo: 'balneario' | 'cachoeira' | 'trilha' | 'parque' | 'fazenda-ecoturismo';
   municipioId: string;
   capacidadeMaxima: number;
   ocupacaoAtual: number;
   status: 'ativo' | 'inativo' | 'manutencao';
   descricao: string;
+  endereco?: string;
+  latitude?: number;
+  longitude?: number;
+  mapUrl?: string;
+  placeId?: string;
   imagem?: string;
+  imagens?: AtrativoImagemDto[];
 }
+
+export type CriarAtrativoRequest = {
+  nome: string;
+  tipo: Atrativo['tipo'];
+  municipioId: string;
+  capacidadeMaxima: number;
+  ocupacaoAtual?: number;
+  status?: Atrativo['status'];
+  descricao?: string;
+  endereco?: string;
+  latitude?: number;
+  longitude?: number;
+  mapUrl?: string;
+  placeId?: string;
+  imagem?: string;
+};
+
+export type GeocodeSuggestionDto = {
+  displayName: string;
+  latitude: number;
+  longitude: number;
+  placeId?: string;
+};
+
+export interface AtrativoImagemDto {
+  id: string;
+  url: string;
+  ordem: number;
+  principal: boolean;
+  descricao?: string | null;
+}
+
+export type UploadImagensAtrativoRequest = {
+  imagens: File[];
+  descricoes?: string[];
+  ordens?: number[];
+  principalId?: string;
+};
+
+export type ReordenarImagensAtrativoRequestItem = {
+  id: string;
+  ordem: number;
+};
+
+type UploadImagensAtrativoResponse = {
+  atrativoId?: string;
+  atrativoNome?: string;
+  totalImagens?: number;
+  imagensAdicionadas?: AtrativoImagemDto[];
+};
 
 export interface QuiosqueDto {
   id: string;
@@ -304,6 +360,143 @@ export type DashboardDto = {
   TopAtrativos?: DashboardTopAtrativoDto[];
 };
 
+function parseTipoAtrativo(value: unknown): Atrativo['tipo'] {
+  const raw = String(value ?? '').trim().toLowerCase();
+  if (raw === '1' || raw === 'balneario') return 'balneario';
+  if (raw === '2' || raw === 'cachoeira') return 'cachoeira';
+  if (raw === '3' || raw === 'trilha') return 'trilha';
+  if (raw === '4' || raw === 'parque') return 'parque';
+  if (raw === '5' || raw === 'fazendaecoturismo' || raw === 'fazenda-ecoturismo') return 'fazenda-ecoturismo';
+  return 'balneario';
+}
+
+function toTipoAtrativoApiValue(tipo: Atrativo['tipo']): number {
+  if (tipo === 'balneario') return 1;
+  if (tipo === 'cachoeira') return 2;
+  if (tipo === 'trilha') return 3;
+  if (tipo === 'parque') return 4;
+  return 5;
+}
+
+function parseAtrativoImagem(raw: any): AtrativoImagemDto {
+  const url = String(
+    raw?.url ??
+    raw?.Url ??
+    raw?.imagem ??
+    raw?.Imagem ??
+    raw?.imagemUrl ??
+    raw?.ImagemUrl ??
+    raw?.base64 ??
+    raw?.Base64 ??
+    ''
+  );
+
+  return {
+    id: String(raw?.id ?? raw?.Id ?? ''),
+    url,
+    ordem: Number(raw?.ordem ?? raw?.Ordem ?? 0),
+    principal: Boolean(raw?.principal ?? raw?.Principal),
+    descricao: (raw?.descricao ?? raw?.Descricao ?? null) as string | null,
+  };
+}
+
+function parseAtrativo(raw: any): Atrativo {
+  const parseCoordinate = (value: unknown): number | undefined => {
+    if (value === null || value === undefined) return undefined;
+    if (typeof value === 'number') return Number.isFinite(value) ? value : undefined;
+    const normalized = String(value).trim().replace(',', '.');
+    const parsed = Number(normalized);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  };
+
+  const rawImagensCandidates = [
+    raw?.imagens,
+    raw?.Imagens,
+    raw?.imagensAtrativo,
+    raw?.ImagensAtrativo,
+    raw?.atrativoImagens,
+    raw?.AtrativoImagens,
+    raw?.fotos,
+    raw?.Fotos,
+  ];
+
+  const imagemLegacy = raw?.imagem ?? raw?.Imagem ?? null;
+
+  let imagensRaw: any[] = [];
+  const explicitArray = rawImagensCandidates.find((candidate) => Array.isArray(candidate));
+  if (Array.isArray(explicitArray)) {
+    imagensRaw = explicitArray;
+  } else {
+    const explicitString = rawImagensCandidates.find((candidate) => typeof candidate === 'string' && candidate.trim());
+    if (typeof explicitString === 'string') {
+      try {
+        const parsed = JSON.parse(explicitString);
+        if (Array.isArray(parsed)) imagensRaw = parsed;
+      } catch {
+        // ignore parse error and fallback to legacy fields
+      }
+    }
+  }
+
+  if (imagensRaw.length === 0 && typeof imagemLegacy === 'string' && imagemLegacy.trim()) {
+    const legacy = imagemLegacy.trim();
+    if (legacy.startsWith('[') || legacy.startsWith('{')) {
+      try {
+        const parsed = JSON.parse(legacy);
+        if (Array.isArray(parsed)) imagensRaw = parsed;
+        else if (parsed && typeof parsed === 'object') imagensRaw = [parsed];
+      } catch {
+        // If it's not valid json, treat as a single URL/base64 image below.
+      }
+    }
+
+    if (imagensRaw.length === 0) {
+      imagensRaw = [{ id: 'legacy-imagem', url: legacy, ordem: 1, principal: true }];
+    }
+  }
+
+  const imagens = imagensRaw
+    .map(parseAtrativoImagem)
+    .filter((img) => Boolean(img.url));
+
+  const principal = imagens.find((img) => img.principal)?.url;
+  const primeira = imagens.slice().sort((a, b) => a.ordem - b.ordem)[0]?.url;
+
+  return {
+    id: String(raw?.id ?? raw?.Id ?? ''),
+    nome: String(raw?.nome ?? raw?.Nome ?? ''),
+    tipo: parseTipoAtrativo(raw?.tipo ?? raw?.Tipo),
+    municipioId: String(raw?.municipioId ?? raw?.MunicipioId ?? ''),
+    capacidadeMaxima: Number(raw?.capacidadeMaxima ?? raw?.CapacidadeMaxima ?? 0),
+    ocupacaoAtual: Number(raw?.ocupacaoAtual ?? raw?.OcupacaoAtual ?? 0),
+    status: (raw?.status ?? raw?.Status ?? 'ativo') as Atrativo['status'],
+    descricao: String(raw?.descricao ?? raw?.Descricao ?? ''),
+    endereco: String(
+      raw?.endereco ??
+      raw?.Endereco ??
+      raw?.enderecoCompleto ??
+      raw?.EnderecoCompleto ??
+      raw?.localizacao ??
+      raw?.Localizacao ??
+      ''
+    ),
+    latitude: parseCoordinate(raw?.latitude ?? raw?.Latitude ?? raw?.lat ?? raw?.Lat),
+    longitude: parseCoordinate(raw?.longitude ?? raw?.Longitude ?? raw?.lng ?? raw?.Lng ?? raw?.lon ?? raw?.Lon),
+    mapUrl: String(
+      raw?.mapUrl ??
+      raw?.MapUrl ??
+      raw?.mapaUrl ??
+      raw?.MapaUrl ??
+      raw?.googleMapsUrl ??
+      raw?.GoogleMapsUrl ??
+      ''
+    ),
+    placeId: String(raw?.placeId ?? raw?.PlaceId ?? ''),
+    imagem: String(raw?.imagem ?? raw?.Imagem ?? principal ?? primeira ?? ''),
+    imagens,
+  };
+}
+
 export const apiClient = {
   
   health: () => http.get<string>("/health"),
@@ -317,22 +510,56 @@ export const apiClient = {
 
   // Municípios
   getMunicipio: (id: string) => http.get<Municipio>(`/municipios/${id}`),
+  buscarEndereco: (query: string) =>
+    http.get<Array<{
+      displayName?: string;
+      DisplayName?: string;
+      latitude?: number | string;
+      Latitude?: number | string;
+      longitude?: number | string;
+      Longitude?: number | string;
+      placeId?: string;
+      PlaceId?: string;
+    }>>(`/geocode?query=${encodeURIComponent(query)}`).then((items) =>
+      (items ?? [])
+        .map((item) => ({
+          displayName: String(item.displayName ?? item.DisplayName ?? ''),
+          latitude: Number(item.latitude ?? item.Latitude ?? 0),
+          longitude: Number(item.longitude ?? item.Longitude ?? 0),
+          placeId: String(item.placeId ?? item.PlaceId ?? ''),
+        }))
+        .filter((item) => Boolean(item.displayName) && Number.isFinite(item.latitude) && Number.isFinite(item.longitude))
+    ),
 
   // Atrativos
   listarAtrativos: (params: ListAtrativosRequest = {}) => {
     if (!params.MunicipioId) {
       throw new Error("MunicipioId é obrigatório para listar atrativos.");
     }
-    return http.get<Atrativo[]>(`/atrativos-municipio/${encodeURIComponent(params.MunicipioId)}`);
+    return http
+      .get<any[]>(`/atrativos-municipio/${encodeURIComponent(params.MunicipioId)}`)
+      .then((items) => (items ?? []).map(parseAtrativo));
   },
   listarAtrativosPublicos: (municipioId?: string | null) =>
-    http.get<Atrativo[]>(
-      `/atrativos${municipioId ? `?municipioId=${encodeURIComponent(municipioId)}` : ""}`
-    ),
+    municipioId
+      ? http
+          .get<any[]>(`/atrativos-municipio/${encodeURIComponent(municipioId)}`)
+          .then((items) => (items ?? []).map(parseAtrativo))
+      : Promise.resolve([]),
   
-  obterAtrativo: (id: string) => http.get<Atrativo>(`/atrativos/${id}`),
+  obterAtrativo: (id: string) => http.get<any>(`/atrativos/${id}`).then(parseAtrativo),
+  criarAtrativo: (body: CriarAtrativoRequest) =>
+    http
+      .post<any>("/atrativos", {
+        ...body,
+        tipo: toTipoAtrativoApiValue(body.tipo),
+      })
+      .then(parseAtrativo),
   atualizarAtrativo: (id: string, body: Partial<Atrativo>) =>
-    http.put<void>(`/atrativos/${id}`, body),
+    http.put<void>(`/atrativos/${id}`, {
+      ...body,
+      ...(body.tipo ? { tipo: toTipoAtrativoApiValue(body.tipo) } : {}),
+    }),
 
   // Quiosques
   listarQuiosques: (atrativoId: string) =>
@@ -416,4 +643,26 @@ export const apiClient = {
   },
   deletarUploadPorUrl: (url: string) =>
     http.del<void>(`/uploads?url=${encodeURIComponent(url)}`),
+
+  uploadImagensAtrativo: (atrativoId: string, payload: UploadImagensAtrativoRequest) => {
+    const form = new FormData();
+    payload.imagens.forEach((file) => form.append("Imagens", file));
+    payload.descricoes?.forEach((descricao) => form.append("Descricoes", descricao ?? ""));
+    payload.ordens?.forEach((ordem) => form.append("Ordens", String(ordem)));
+    if (payload.principalId) form.append("PrincipalId", payload.principalId);
+
+    return http.post<UploadImagensAtrativoResponse>(
+      `/uploads/atrativos/${encodeURIComponent(atrativoId)}/imagens`,
+      form
+    );
+  },
+
+  removerImagemAtrativo: (atrativoId: string, imagemId: string) =>
+    http.del<void>(`/uploads/atrativos/${encodeURIComponent(atrativoId)}/imagens/${encodeURIComponent(imagemId)}`),
+
+  definirImagemPrincipalAtrativo: (atrativoId: string, imagemId: string) =>
+    http.put<void>(`/uploads/atrativos/${encodeURIComponent(atrativoId)}/imagens/${encodeURIComponent(imagemId)}/principal`),
+
+  reordenarImagensAtrativo: (atrativoId: string, imagens: ReordenarImagensAtrativoRequestItem[]) =>
+    http.put<void>(`/uploads/atrativos/${encodeURIComponent(atrativoId)}/imagens/reordenar`, { imagens }),
 };

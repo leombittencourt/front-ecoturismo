@@ -45,10 +45,23 @@ function toNumber(value: unknown): number {
 
 function formatTipo(tipo: string): string {
   const normalized = tipo.toLowerCase().trim();
+  if (normalized === '1') return 'Balneário';
+  if (normalized === '2') return 'Cachoeira';
+  if (normalized === '3') return 'Trilha';
+  if (normalized === '4') return 'Parque';
+  if (normalized === '5') return 'Fazenda Ecoturismo';
   if (normalized === 'balneario') return 'Balneário';
   if (normalized === 'cachoeira') return 'Cachoeira';
   if (normalized === 'trilha') return 'Trilha';
   if (normalized === 'parque') return 'Parque';
+  if (
+    normalized === 'fazenda-ecoturismo' ||
+    normalized === 'fazenda ecoturismo' ||
+    normalized === 'fazendaecoturismo' ||
+    normalized === 'fazenda'
+  ) {
+    return 'Fazenda Ecoturismo';
+  }
   return tipo ? `${tipo.charAt(0).toUpperCase()}${tipo.slice(1)}` : 'Atrativo';
 }
 
