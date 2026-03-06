@@ -4,6 +4,9 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import SEOHead from '@/components/SEOHead';
 import PublicPageHeader from '@/components/PublicPageHeader';
+import PaginationControls from '@/components/PaginationControls';
+import { useClientPagination } from '@/hooks/useClientPagination';
+import { ITEMS_PER_PAGE } from '@/constants/pagination';
 import { apiClient } from '@/services/apiClient';
 import { MapPin, Waves, ArrowRight } from 'lucide-react';
 
@@ -171,8 +174,9 @@ export default function AtrativosPublicos() {
         setLoading(true);
         setLoadError(null);
 
-        const data = await apiClient.listarAtrativosPublicos(municipioId || undefined);
+        const response = await apiClient.listarAtrativosPublicos({ municipioId: municipioId || undefined, page: 1, pageSize: 500 });
         if (!active) return;
+        const data = response.items;
 
         const missingMunicipioIds = Array.from(
           new Set(
@@ -257,6 +261,17 @@ export default function AtrativosPublicos() {
       return tipoOk && disponibilidadeOk && experienciaOk;
     });
   }, [atrativos, tipoFiltro, disponibilidadeFiltro, experienciaFiltro]);
+  const {
+    currentPage,
+    paginatedItems: paginatedAtrativos,
+    setCurrentPage,
+    totalItems,
+    totalPages,
+  } = useClientPagination(
+    listaFiltrada,
+    ITEMS_PER_PAGE,
+    `${atrativos.length}-${tipoFiltro}-${disponibilidadeFiltro}-${experienciaFiltro}`
+  );
 
   return (
     <div className="min-h-screen bg-background">
@@ -357,65 +372,76 @@ export default function AtrativosPublicos() {
             Nenhum atrativo encontrado para os filtros selecionados.
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            {listaFiltrada.map((item) => (
-              <Link key={`${item.slug}-${item.nome}`} to={`/atrativos/${item.slug}`} className="block">
-                <Card className="overflow-hidden group transition-all duration-200 hover:-translate-y-1 hover:shadow-lg">
-                  <div className="h-44 bg-muted relative">
-                    {item.imagemUrl ? (
-                      <img src={item.imagemUrl} alt={item.nome} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" loading="lazy" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-primary/10 via-secondary/10 to-accent/10">
-                        <Waves className="h-8 w-8 text-primary/70" />
-                      </div>
-                    )}
-                  </div>
-                  <CardContent className="p-4 space-y-3">
-                    <h2 className="font-heading font-bold text-foreground text-lg leading-tight line-clamp-2">{item.nome}</h2>
-                    <div className="flex items-center justify-between gap-2">
-                      <Badge variant="secondary">{item.tipo}</Badge>
-                      {item.disponibilidade !== 'nao-informado' && (
-                        <Badge className={disponibilidadeTone(item.disponibilidade)}>
-                          {disponibilidadeLabel(item.disponibilidade)}
-                        </Badge>
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              {paginatedAtrativos.map((item) => (
+                <Link key={`${item.slug}-${item.nome}`} to={`/atrativos/${item.slug}`} className="block">
+                  <Card className="overflow-hidden group transition-all duration-200 hover:-translate-y-1 hover:shadow-lg">
+                    <div className="h-44 bg-muted relative">
+                      {item.imagemUrl ? (
+                        <img src={item.imagemUrl} alt={item.nome} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" loading="lazy" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-primary/10 via-secondary/10 to-accent/10">
+                          <Waves className="h-8 w-8 text-primary/70" />
+                        </div>
                       )}
                     </div>
-                    <div className="space-y-1.5">
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="text-foreground/65">Ocupacao</span>
-                        <span className="font-semibold text-foreground">{item.ocupacaoPercent}%</span>
+                    <CardContent className="p-4 space-y-3">
+                      <h2 className="font-heading font-bold text-foreground text-lg leading-tight line-clamp-2">{item.nome}</h2>
+                      <div className="flex items-center justify-between gap-2">
+                        <Badge variant="secondary">{item.tipo}</Badge>
+                        {item.disponibilidade !== 'nao-informado' && (
+                          <Badge className={disponibilidadeTone(item.disponibilidade)}>
+                            {disponibilidadeLabel(item.disponibilidade)}
+                          </Badge>
+                        )}
                       </div>
-                      <div className="h-2 rounded-full bg-muted">
-                        <div
-                          className={`h-2 rounded-full ${
-                            item.disponibilidade === 'lotado'
-                              ? 'bg-destructive'
-                              : item.disponibilidade === 'quase-cheio'
-                                ? 'bg-warning'
-                                : 'bg-success'
-                          }`}
-                          style={{ width: `${item.ocupacaoPercent}%` }}
-                        />
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-foreground/65">Ocupacao</span>
+                          <span className="font-semibold text-foreground">{item.ocupacaoPercent}%</span>
+                        </div>
+                        <div className="h-2 rounded-full bg-muted">
+                          <div
+                            className={`h-2 rounded-full ${
+                              item.disponibilidade === 'lotado'
+                                ? 'bg-destructive'
+                                : item.disponibilidade === 'quase-cheio'
+                                  ? 'bg-warning'
+                                  : 'bg-success'
+                            }`}
+                            style={{ width: `${item.ocupacaoPercent}%` }}
+                          />
+                        </div>
                       </div>
-                    </div>
-                    <p className="text-sm text-foreground/70 line-clamp-1">{item.resumo}</p>
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="text-xs text-foreground/70 flex items-center gap-1">
-                        <MapPin className="h-3.5 w-3.5" />
-                        {item.municipio}
-                      </p>
-                      <p className="text-[11px] text-foreground/70">{item.experiencias.slice(0, 2).join(' • ')}</p>
-                    </div>
-                    <div className="flex items-center justify-end pt-1">
-                      <span className="inline-flex items-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium text-foreground shadow-sm">
-                        Explorar destino
-                        <ArrowRight className="ml-2 h-4 w-4" />
-                      </span>
-                    </div>
-                  </CardContent>
-                </Card>
-              </Link>
-            ))}
+                      <p className="text-sm text-foreground/70 line-clamp-1">{item.resumo}</p>
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-xs text-foreground/70 flex items-center gap-1">
+                          <MapPin className="h-3.5 w-3.5" />
+                          {item.municipio}
+                        </p>
+                        <p className="text-[11px] text-foreground/70">{item.experiencias.slice(0, 2).join(' • ')}</p>
+                      </div>
+                      <div className="flex items-center justify-end pt-1">
+                        <span className="inline-flex items-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium text-foreground shadow-sm">
+                          Explorar destino
+                          <ArrowRight className="ml-2 h-4 w-4" />
+                        </span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </Link>
+              ))}
+            </div>
+
+            <PaginationControls
+              currentPage={currentPage}
+              pageSize={ITEMS_PER_PAGE}
+              totalItems={totalItems}
+              totalPages={totalPages}
+              onPageChange={setCurrentPage}
+              itemLabel="atrativos"
+            />
           </div>
         )}
       </section>

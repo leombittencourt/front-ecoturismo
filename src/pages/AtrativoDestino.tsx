@@ -172,7 +172,8 @@ export default function AtrativoDestino() {
 
     const load = async () => {
       try {
-        const data = await apiClient.listarAtrativosPublicos(municipioId || undefined);
+        const response = await apiClient.listarAtrativosPublicos({ municipioId: municipioId || undefined, page: 1, pageSize: 500 });
+        const data = response.items;
         if (!active) return;
 
         const found = (data ?? [])

@@ -127,7 +127,8 @@ export default function Reservar() {
       }
 
       try {
-        const data = await apiClient.listarAtrativos({ MunicipioId: municipioIdParam });
+        const response = await apiClient.listarAtrativos({ MunicipioId: municipioIdParam, page: 1, pageSize: 500 });
+        const data = response.items;
         if (!ativo) return;
 
         const mapped = (data ?? [])

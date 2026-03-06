@@ -42,6 +42,16 @@ export interface RoleOption {
   isActive?: boolean;
 }
 
+export interface PagedResult<T> {
+  items: T[];
+  page: number;
+  pageSize: number;
+  totalItems: number;
+  totalPages: number;
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
+}
+
 export type ConfiguracoesDto = { chave: string; valor: string | null };
 
 export interface BannerDto {
@@ -270,6 +280,19 @@ export type CriarReservaRequest = {
 
 export type ListAtrativosRequest = {
   MunicipioId?: string | null;
+  page?: number;
+  pageSize?: number;
+};
+
+export type ListAtrativosPublicosRequest = {
+  municipioId?: string | null;
+  page?: number;
+  pageSize?: number;
+};
+
+export type ListUsuariosRequest = {
+  page?: number;
+  pageSize?: number;
 };
 
 export type CriarUsuarioRequest = {
@@ -603,6 +626,52 @@ function parseUsuario(raw: any): UsuarioSistema {
   };
 }
 
+function buildQuery(params: Record<string, unknown>): string {
+  const searchParams = new URLSearchParams();
+
+  Object.entries(params).forEach(([key, value]) => {
+    if (value === undefined || value === null || value === '') return;
+    searchParams.set(key, String(value));
+  });
+
+  const query = searchParams.toString();
+  return query ? `?${query}` : '';
+}
+
+function parsePagedResponse<T>(raw: any, parser: (item: any) => T): PagedResult<T> {
+  const itemsRaw = Array.isArray(raw)
+    ? raw
+    : Array.isArray(raw?.items)
+      ? raw.items
+      : Array.isArray(raw?.Items)
+        ? raw.Items
+        : [];
+
+  const pageRaw = Number(raw?.page ?? raw?.Page ?? 1);
+  const pageSizeRaw = Number(raw?.pageSize ?? raw?.PageSize ?? (itemsRaw.length || 1));
+  const totalItemsRaw = Number(raw?.totalItems ?? raw?.TotalItems ?? itemsRaw.length);
+  const totalPagesRaw = Number(
+    raw?.totalPages ??
+    raw?.TotalPages ??
+    Math.max(1, Math.ceil(totalItemsRaw / Math.max(1, pageSizeRaw)))
+  );
+
+  const page = Number.isFinite(pageRaw) ? pageRaw : 1;
+  const pageSize = Number.isFinite(pageSizeRaw) ? pageSizeRaw : itemsRaw.length;
+  const totalItems = Number.isFinite(totalItemsRaw) ? totalItemsRaw : itemsRaw.length;
+  const totalPages = Number.isFinite(totalPagesRaw) ? totalPagesRaw : 1;
+
+  return {
+    items: itemsRaw.map(parser),
+    page,
+    pageSize,
+    totalItems,
+    totalPages,
+    hasNextPage: Boolean(raw?.hasNextPage ?? raw?.HasNextPage ?? page < totalPages),
+    hasPreviousPage: Boolean(raw?.hasPreviousPage ?? raw?.HasPreviousPage ?? page > 1),
+  };
+}
+
 export const apiClient = {
   
   health: () => http.get<string>("/health"),
@@ -650,17 +719,17 @@ export const apiClient = {
     if (!params.MunicipioId) {
       throw new Error("MunicipioId é obrigatório para listar atrativos.");
     }
+    const query = buildQuery({ page: params.page, pageSize: params.pageSize });
     return http
-      .get<any[]>(`/atrativos-municipio/${encodeURIComponent(params.MunicipioId)}`)
-      .then((items) => (items ?? []).map(parseAtrativo));
+      .get<any>(`/atrativos-municipio/${encodeURIComponent(params.MunicipioId)}${query}`)
+      .then((response) => parsePagedResponse(response, parseAtrativo));
   },
-  listarAtrativosPublicos: (municipioId?: string | null) =>
-    municipioId
+  listarAtrativosPublicos: (params: ListAtrativosPublicosRequest = {}) =>
+    params.municipioId
       ? http
-          .get<any[]>(`/atrativos-municipio/${encodeURIComponent(municipioId)}`)
-          .then((items) => (items ?? []).map(parseAtrativo))
-      : Promise.resolve([]),
-  
+          .get<any>(`/atrativos-municipio/${encodeURIComponent(params.municipioId)}${buildQuery({ page: params.page, pageSize: params.pageSize })}`)
+          .then((response) => parsePagedResponse(response, parseAtrativo))
+      : Promise.resolve(parsePagedResponse([], parseAtrativo)),
   obterAtrativo: (id: string) => http.get<any>(`/atrativos/${id}`).then(parseAtrativo),
   criarAtrativo: (body: CriarAtrativoRequest) =>
     http
@@ -784,9 +853,13 @@ export const apiClient = {
     http.put<void>(`/uploads/atrativos/${encodeURIComponent(atrativoId)}/imagens/reordenar`, { imagens }),
 
   // Usuarios
-  listarUsuarios: () => http.get<any[]>("/usuarios").then((items) => (items ?? []).map(parseUsuario)),
+  listarUsuarios: (params: ListUsuariosRequest = {}) =>
+    http
+      .get<any>(`/usuarios${buildQuery({ page: params.page, pageSize: params.pageSize })}`)
+      .then((response) => parsePagedResponse(response, parseUsuario)),
   obterUsuario: (id: string) => http.get<any>(`/usuarios/${id}`).then(parseUsuario),
   criarUsuario: (body: CriarUsuarioRequest) => http.post<any>("/usuarios", body),
   atualizarUsuario: (id: string, body: AtualizarUsuarioRequest) => http.put<any>(`/usuarios/${id}`, body),
   excluirUsuario: (id: string) => http.del<void>(`/usuarios/${id}`),
 };
+

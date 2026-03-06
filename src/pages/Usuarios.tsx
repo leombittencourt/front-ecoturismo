@@ -5,6 +5,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import PaginationControls from '@/components/PaginationControls';
 import { Pencil, Trash2, UserPlus, Users } from 'lucide-react';
 import {
   apiClient,
@@ -16,6 +17,7 @@ import {
   type UsuarioSistema,
 } from '@/services/apiClient';
 import { useToast } from '@/hooks/use-toast';
+import { ITEMS_PER_PAGE } from '@/constants/pagination';
 
 type FormState = {
   nome: string;
@@ -85,6 +87,9 @@ export default function Usuarios() {
   const [usuarios, setUsuarios] = useState<UsuarioSistema[]>([]);
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [loadingEdit, setLoadingEdit] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
 
   const selectedRole = useMemo(() => roles.find((r) => r.id === form.roleId), [roles, form.roleId]);
   const roleIsBalneario = isBalnearioRole(selectedRole);
@@ -92,10 +97,14 @@ export default function Usuarios() {
   const loadUsuarios = async () => {
     try {
       setLoadingUsuarios(true);
-      const data = await apiClient.listarUsuarios();
-      setUsuarios(data ?? []);
+      const data = await apiClient.listarUsuarios({ page: currentPage, pageSize: ITEMS_PER_PAGE });
+      setUsuarios(data.items ?? []);
+      setTotalItems(data.totalItems);
+      setTotalPages(data.totalPages);
     } catch (error) {
       setUsuarios([]);
+      setTotalItems(0);
+      setTotalPages(1);
       toast({
         title: 'Erro ao carregar usuarios',
         description: getErrorMessage(error, 'Nao foi possivel carregar os usuarios.'),
@@ -132,11 +141,20 @@ export default function Usuarios() {
     };
 
     void loadInitial();
-    void loadUsuarios();
     return () => {
       active = false;
     };
   }, [toast]);
+
+  useEffect(() => {
+    void loadUsuarios();
+  }, [currentPage]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
 
   useEffect(() => {
     if (!roleIsBalneario) {
@@ -156,9 +174,9 @@ export default function Usuarios() {
     const loadAtrativos = async () => {
       try {
         setLoadingAtrativos(true);
-        const data = await apiClient.listarAtrativos({ MunicipioId: municipioId });
+        const data = await apiClient.listarAtrativos({ MunicipioId: municipioId, page: 1, pageSize: 500 });
         if (!active) return;
-        const ativos = (data ?? []).filter((a) => a.status === 'ativo');
+        const ativos = (data.items ?? []).filter((a) => a.status === 'ativo');
         setAtrativos(ativos);
       } catch (error) {
         if (!active) return;
@@ -457,6 +475,15 @@ export default function Usuarios() {
                   </div>
                 </div>
               ))}
+
+              <PaginationControls
+                currentPage={currentPage}
+                pageSize={ITEMS_PER_PAGE}
+                totalItems={totalItems}
+                totalPages={totalPages}
+                onPageChange={setCurrentPage}
+                itemLabel="usuarios"
+              />
             </div>
           )}
         </CardContent>

@@ -12,6 +12,7 @@ import {
   type DashboardDto,
   type Atrativo,
   type ListAtrativosRequest,
+  type PagedResult,
   type QuiosqueDto,
   type AtualizarQuiosqueRequest,
   type CriarQuiosqueRequest,
@@ -103,6 +104,15 @@ export async function fetchDashboard(periodo: string = '7d'): Promise<DashboardD
 
 // Atrativos
 export async function fetchAtrativos(request: ListAtrativosRequest = {}): Promise<Atrativo[]> {
+  const response = await apiClient.listarAtrativos({
+    ...request,
+    page: request.page ?? 1,
+    pageSize: request.pageSize ?? 500,
+  });
+  return response.items;
+}
+
+export async function fetchAtrativosPage(request: ListAtrativosRequest = {}): Promise<PagedResult<Atrativo>> {
   return apiClient.listarAtrativos(request);
 }
 

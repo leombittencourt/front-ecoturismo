@@ -17,11 +17,13 @@ import {
 } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { fetchAtrativos, criarAtrativo } from '@/services/api';
+import { fetchAtrativosPage, criarAtrativo } from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import PaginationControls from '@/components/PaginationControls';
 import { type Atrativo } from '@/services/apiClient';
 import { serializarDescricaoDetalhada, type AtrativoDescricaoDetalhada } from '@/utils/atrativoDescricao';
+import { ITEMS_PER_PAGE } from '@/constants/pagination';
 import { MapPin, Users, Droplets, Mountain, TreePine, Tent, Plus } from 'lucide-react';
 
 const tipoIcons: Record<string, React.ElementType> = {
@@ -112,6 +114,9 @@ export default function Atrativos() {
   const [loading, setLoading] = useState(true);
   const [createOpen, setCreateOpen] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
   const [newForm, setNewForm] = useState<{
     nome: string;
     termoBusca: string;
@@ -141,18 +146,29 @@ export default function Atrativos() {
   useEffect(() => {
     if (!user?.municipioId) {
       setAtrativos([]);
+      setTotalItems(0);
+      setTotalPages(1);
       setLoading(false);
       return;
     }
 
-    fetchAtrativos({ MunicipioId: user.municipioId })
-      .then((d) => {
-        setAtrativos(d);
+    setLoading(true);
+    fetchAtrativosPage({ MunicipioId: user.municipioId, page: currentPage, pageSize: ITEMS_PER_PAGE })
+      .then((response) => {
+        setAtrativos(response.items);
+        setTotalItems(response.totalItems);
+        setTotalPages(response.totalPages);
       })
       .finally(() => {
         setLoading(false);
       });
-  }, [user?.municipioId]);
+  }, [currentPage, user?.municipioId]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
 
   const handleCreateAtrativo = async () => {
     if (!user?.municipioId) return;
@@ -167,7 +183,7 @@ export default function Atrativos() {
 
     setCreating(true);
     try {
-      const created = await criarAtrativo({
+      await criarAtrativo({
         nome: newForm.nome.trim(),
         tipo: newForm.tipo,
         municipioId: user.municipioId,
@@ -187,8 +203,8 @@ export default function Atrativos() {
         }),
       });
 
-      setAtrativos((prev) => [...prev, created].sort((a, b) => a.nome.localeCompare(b.nome)));
       setCreateOpen(false);
+      setCurrentPage(1);
       setNewForm({
         nome: '',
         termoBusca: '',
@@ -252,7 +268,7 @@ export default function Atrativos() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-heading font-bold">Atrativos Turisticos</h1>
         <div className="flex items-center gap-3">
-          <p className="text-sm text-muted-foreground">{atrativos.length} cadastrados</p>
+          <p className="text-sm text-muted-foreground">{totalItems} cadastrados</p>
           {canCreateAtrativo && (
             <Button size="sm" onClick={() => setCreateOpen(true)}>
               <Plus className="h-4 w-4 mr-1" />
@@ -271,10 +287,10 @@ export default function Atrativos() {
 
           <div className="max-h-[68vh] overflow-y-auto pr-1">
             <Tabs defaultValue="dados" className="space-y-4">
-              <TabsList className="grid w-full grid-cols-3 h-auto p-1 bg-muted/70">
-                <TabsTrigger value="dados" className="data-[state=active]:bg-background data-[state=active]:shadow-sm">Dados</TabsTrigger>
-                <TabsTrigger value="descricao" className="data-[state=active]:bg-background data-[state=active]:shadow-sm">Descricao</TabsTrigger>
-                <TabsTrigger value="localizacao" className="data-[state=active]:bg-background data-[state=active]:shadow-sm">Localizacao</TabsTrigger>
+              <TabsList className="grid h-auto w-full grid-cols-1 gap-1 bg-muted/70 p-1 sm:grid-cols-3">
+                <TabsTrigger value="dados" className="h-auto w-full whitespace-normal px-3 py-2 text-center data-[state=active]:bg-background data-[state=active]:shadow-sm">Dados</TabsTrigger>
+                <TabsTrigger value="descricao" className="h-auto w-full whitespace-normal px-3 py-2 text-center data-[state=active]:bg-background data-[state=active]:shadow-sm">Descricao</TabsTrigger>
+                <TabsTrigger value="localizacao" className="h-auto w-full whitespace-normal px-3 py-2 text-center data-[state=active]:bg-background data-[state=active]:shadow-sm">Localizacao</TabsTrigger>
               </TabsList>
 
             <TabsContent value="dados" className="space-y-4">
@@ -515,6 +531,15 @@ export default function Atrativos() {
           );
         })}
       </div>
+
+      <PaginationControls
+        currentPage={currentPage}
+        pageSize={ITEMS_PER_PAGE}
+        totalItems={totalItems}
+        totalPages={totalPages}
+        onPageChange={setCurrentPage}
+        itemLabel="atrativos"
+      />
     </div>
   );
 }

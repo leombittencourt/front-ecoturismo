@@ -13,6 +13,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import PaginationControls from '@/components/PaginationControls';
 import {
   fetchAtrativo,
   atualizarAtrativo,
@@ -27,10 +29,12 @@ import { apiClient } from '@/services/apiClient';
 import { atrativoDetalheData } from '@/data/mock-data';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { useClientPagination } from '@/hooks/useClientPagination';
 import { serializarDescricaoDetalhada, type AtrativoDescricaoDetalhada } from '@/utils/atrativoDescricao';
+import { ITEMS_PER_PAGE } from '@/constants/pagination';
 import {
   ArrowLeft, Users, Droplets, Mountain, TreePine, Tent, MapPin,
-  BarChart3, Clock, Star, Upload, Trash2, ImageIcon, CheckCircle2, Move,
+  BarChart3, Clock, Star, Upload, Trash2, ImageIcon, CheckCircle2, Move, ChevronDown,
 } from 'lucide-react';
 import {
   AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
@@ -199,6 +203,7 @@ export default function AtrativoDetalhe() {
   const [settingPrincipalId, setSettingPrincipalId] = useState<string | null>(null);
   const [reordering, setReordering] = useState(false);
   const [municipioLabel, setMunicipioLabel] = useState('');
+  const [galleryOpen, setGalleryOpen] = useState(false);
   const [editForm, setEditForm] = useState<{
     nome: string;
     termoBusca: string;
@@ -239,6 +244,13 @@ export default function AtrativoDetalhe() {
   const [cropPixels, setCropPixels] = useState<CropPixels | null>(null);
   const [cropping, setCropping] = useState(false);
   const [replaceOriginalOnCrop, setReplaceOriginalOnCrop] = useState(false);
+  const {
+    currentPage: galleryPage,
+    paginatedItems: paginatedImages,
+    setCurrentPage: setGalleryPage,
+    totalItems: galleryTotalItems,
+    totalPages: galleryTotalPages,
+  } = useClientPagination(imagensDnD, ITEMS_PER_PAGE, imagensDnD.length);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -762,11 +774,11 @@ export default function AtrativoDetalhe() {
           </CardHeader>
           <CardContent className="space-y-4">
             <Tabs defaultValue="dados" className="space-y-4">
-              <TabsList className="grid w-full grid-cols-4 h-auto p-1 bg-muted/70">
-                <TabsTrigger value="dados" className="data-[state=active]:bg-background data-[state=active]:shadow-sm">Dados</TabsTrigger>
-                <TabsTrigger value="descricao" className="data-[state=active]:bg-background data-[state=active]:shadow-sm">Descricao</TabsTrigger>
-                <TabsTrigger value="localizacao" className="data-[state=active]:bg-background data-[state=active]:shadow-sm">Localizacao</TabsTrigger>
-                <TabsTrigger value="galeria" className="data-[state=active]:bg-background data-[state=active]:shadow-sm">Galeria</TabsTrigger>
+              <TabsList className="grid h-auto w-full grid-cols-1 gap-1 bg-muted/70 p-1 sm:grid-cols-2 lg:grid-cols-4">
+                <TabsTrigger value="dados" className="h-auto w-full whitespace-normal px-3 py-2 text-center data-[state=active]:bg-background data-[state=active]:shadow-sm">Dados</TabsTrigger>
+                <TabsTrigger value="descricao" className="h-auto w-full whitespace-normal px-3 py-2 text-center data-[state=active]:bg-background data-[state=active]:shadow-sm">Descricao</TabsTrigger>
+                <TabsTrigger value="localizacao" className="h-auto w-full whitespace-normal px-3 py-2 text-center data-[state=active]:bg-background data-[state=active]:shadow-sm">Localizacao</TabsTrigger>
+                <TabsTrigger value="galeria" className="h-auto w-full whitespace-normal px-3 py-2 text-center data-[state=active]:bg-background data-[state=active]:shadow-sm">Galeria</TabsTrigger>
               </TabsList>
 
               <TabsContent value="dados" className="space-y-4">
@@ -960,141 +972,172 @@ export default function AtrativoDetalhe() {
         </Card>
       )}
 
-      <Card id="galeria-section">
-        <CardHeader>
-          <CardTitle className="text-lg font-heading">Galeria de Imagens</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {canEditAtrativo && (
-            <div className="rounded-lg border border-dashed border-border p-4 space-y-3">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+      <Collapsible open={galleryOpen} onOpenChange={setGalleryOpen}>
+        <Card id="galeria-section">
+          <CardHeader>
+            <CollapsibleTrigger asChild>
+              <button
+                type="button"
+                className="flex w-full items-center justify-between gap-3 text-left"
+                aria-expanded={galleryOpen}
+              >
                 <div>
-                  <p className="text-sm font-medium">Upload de imagens</p>
-                  <p className="text-xs text-muted-foreground">
-                    Limites: ate 10 por envio, 5MB por arquivo e maximo de 20 por atrativo.
+                  <CardTitle className="text-lg font-heading">Galeria de Imagens</CardTitle>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {galleryOpen ? 'Ocultar galeria' : 'Expandir galeria'}
                   </p>
                 </div>
-                <Input
-                  type="file"
-                  multiple
-                  accept="image/jpeg,image/png,image/gif,image/webp"
-                  onChange={handleFileSelection}
-                  disabled={uploading}
-                  className="max-w-sm"
-                />
-              </div>
-
-              {selectedFiles.length > 0 && (
-                <div className="space-y-3">
-                  {selectedFiles.map((file) => (
-                    <div key={file.name} className="grid grid-cols-1 md:grid-cols-[1fr_2fr] gap-2">
-                      <p className="text-xs text-muted-foreground truncate">
-                        {file.name} ({Math.round(file.size / 1024)}KB)
+                <ChevronDown className={`h-5 w-5 shrink-0 text-muted-foreground transition-transform ${galleryOpen ? 'rotate-180' : ''}`} />
+              </button>
+            </CollapsibleTrigger>
+          </CardHeader>
+          <CollapsibleContent>
+            <CardContent className="space-y-4">
+              {canEditAtrativo && (
+                <div className="space-y-3 rounded-lg border border-dashed border-border p-4">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <p className="text-sm font-medium">Upload de imagens</p>
+                      <p className="text-xs text-muted-foreground">
+                        Limites: ate 10 por envio, 5MB por arquivo e maximo de 20 por atrativo.
                       </p>
-                      <Input
-                        placeholder="Descricao opcional"
-                        value={descricoes[file.name] ?? ''}
-                        onChange={(event) =>
-                          setDescricoes((prev) => ({
-                            ...prev,
-                            [file.name]: event.target.value,
-                          }))
-                        }
-                      />
                     </div>
-                  ))}
-                  <div className="flex justify-end gap-2">
-                    <Button
-                      variant="outline"
-                      onClick={() => {
-                        setSelectedFiles([]);
-                        setDescricoes({});
-                      }}
+                    <Input
+                      type="file"
+                      multiple
+                      accept="image/jpeg,image/png,image/gif,image/webp"
+                      onChange={handleFileSelection}
                       disabled={uploading}
-                    >
-                      Limpar
-                    </Button>
-                    <Button onClick={handleUploadImagens} disabled={uploading}>
-                      <Upload className="h-4 w-4 mr-2" />
-                      {uploading ? 'Enviando...' : 'Enviar imagens'}
-                    </Button>
+                      className="max-w-sm"
+                    />
                   </div>
+
+                  {selectedFiles.length > 0 && (
+                    <div className="space-y-3">
+                      {selectedFiles.map((file) => (
+                        <div key={file.name} className="grid grid-cols-1 gap-2 md:grid-cols-[1fr_2fr]">
+                          <p className="truncate text-xs text-muted-foreground">
+                            {file.name} ({Math.round(file.size / 1024)}KB)
+                          </p>
+                          <Input
+                            placeholder="Descricao opcional"
+                            value={descricoes[file.name] ?? ''}
+                            onChange={(event) =>
+                              setDescricoes((prev) => ({
+                                ...prev,
+                                [file.name]: event.target.value,
+                              }))
+                            }
+                          />
+                        </div>
+                      ))}
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          variant="outline"
+                          onClick={() => {
+                            setSelectedFiles([]);
+                            setDescricoes({});
+                          }}
+                          disabled={uploading}
+                        >
+                          Limpar
+                        </Button>
+                        <Button onClick={handleUploadImagens} disabled={uploading}>
+                          <Upload className="mr-2 h-4 w-4" />
+                          {uploading ? 'Enviando...' : 'Enviar imagens'}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
-            </div>
-          )}
 
-          {imagensOrdenadas.length === 0 ? (
-            <div className="rounded-lg border border-border p-10 text-center space-y-2">
-              <ImageIcon className="h-8 w-8 text-muted-foreground mx-auto" />
-              <p className="text-sm text-muted-foreground">Este atrativo ainda nao possui imagens.</p>
-            </div>
-          ) : (
-            <DndContext
-              sensors={sensors}
-              collisionDetection={closestCenter}
-              onDragEnd={canEditAtrativo ? handleDragEndImagem : undefined}
-            >
-              <SortableContext items={imagensDnD.map((img) => img.id)} strategy={rectSortingStrategy}>
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                  {imagensDnD.map((imagem, index) => (
-                    <SortableImageCard key={imagem.id} id={imagem.id} canDrag={canEditAtrativo && !reordering}>
-                      <div className="rounded-lg border border-border overflow-hidden bg-card">
-                        <div className="aspect-video bg-muted">
-                          <img src={imagem.url} alt={imagem.descricao || `Imagem ${index + 1}`} className="h-full w-full object-cover" />
-                        </div>
-                        <div className="p-3 space-y-2">
-                          <div className="flex items-center justify-between gap-2">
-                            <p className="text-xs text-muted-foreground">Ordem: {imagem.ordem}</p>
-                            {imagem.principal && (
-                              <Badge className="bg-success text-success-foreground">
-                                <CheckCircle2 className="h-3 w-3 mr-1" />
-                                Principal
-                              </Badge>
-                            )}
-                          </div>
-                          <p className="text-sm line-clamp-2">{imagem.descricao || 'Sem descricao'}</p>
-
-                          {canEditAtrativo && (
-                            <div className="flex flex-wrap gap-2 pt-1">
-                              {!imagem.principal && (
-                                <Button
-                                  size="sm"
-                                  variant="secondary"
-                                  disabled={settingPrincipalId === imagem.id}
-                                  onClick={() => handleDefinirPrincipal(imagem.id)}
-                                >
-                                  {settingPrincipalId === imagem.id ? 'Atualizando...' : 'Definir principal'}
-                                </Button>
-                              )}
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => handleAbrirCrop(imagem)}
-                              >
-                                Ajustar capa
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="destructive"
-                                disabled={removingImageId === imagem.id}
-                                onClick={() => handleRemoverImagem(imagem.id)}
-                              >
-                                <Trash2 className="h-4 w-4 mr-1" />
-                                {removingImageId === imagem.id ? 'Removendo...' : 'Remover'}
-                              </Button>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </SortableImageCard>
-                  ))}
+              {imagensOrdenadas.length === 0 ? (
+                <div className="space-y-2 rounded-lg border border-border p-10 text-center">
+                  <ImageIcon className="mx-auto h-8 w-8 text-muted-foreground" />
+                  <p className="text-sm text-muted-foreground">Este atrativo ainda nao possui imagens.</p>
                 </div>
-              </SortableContext>
-            </DndContext>
-          )}
-        </CardContent>
-      </Card>
+              ) : (
+                <DndContext
+                  sensors={sensors}
+                  collisionDetection={closestCenter}
+                  onDragEnd={canEditAtrativo ? handleDragEndImagem : undefined}
+                >
+                  <SortableContext items={paginatedImages.map((img) => img.id)} strategy={rectSortingStrategy}>
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+                      {paginatedImages.map((imagem, index) => (
+                        <SortableImageCard key={imagem.id} id={imagem.id} canDrag={canEditAtrativo && !reordering}>
+                          <div className="overflow-hidden rounded-lg border border-border bg-card">
+                            <div className="aspect-video bg-muted">
+                              <img
+                                src={imagem.url}
+                                alt={imagem.descricao || `Imagem ${(galleryPage - 1) * ITEMS_PER_PAGE + index + 1}`}
+                                className="h-full w-full object-cover"
+                              />
+                            </div>
+                            <div className="space-y-2 p-3">
+                              <div className="flex items-center justify-between gap-2">
+                                <p className="text-xs text-muted-foreground">Ordem: {imagem.ordem}</p>
+                                {imagem.principal && (
+                                  <Badge className="bg-success text-success-foreground">
+                                    <CheckCircle2 className="mr-1 h-3 w-3" />
+                                    Principal
+                                  </Badge>
+                                )}
+                              </div>
+                              <p className="text-sm line-clamp-2">{imagem.descricao || 'Sem descricao'}</p>
+
+                              {canEditAtrativo && (
+                                <div className="flex flex-wrap gap-2 pt-1">
+                                  {!imagem.principal && (
+                                    <Button
+                                      size="sm"
+                                      variant="secondary"
+                                      disabled={settingPrincipalId === imagem.id}
+                                      onClick={() => handleDefinirPrincipal(imagem.id)}
+                                    >
+                                      {settingPrincipalId === imagem.id ? 'Atualizando...' : 'Definir principal'}
+                                    </Button>
+                                  )}
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => handleAbrirCrop(imagem)}
+                                  >
+                                    Ajustar capa
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="destructive"
+                                    disabled={removingImageId === imagem.id}
+                                    onClick={() => handleRemoverImagem(imagem.id)}
+                                  >
+                                    <Trash2 className="mr-1 h-4 w-4" />
+                                    {removingImageId === imagem.id ? 'Removendo...' : 'Remover'}
+                                  </Button>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </SortableImageCard>
+                      ))}
+                    </div>
+                  </SortableContext>
+                </DndContext>
+              )}
+
+              <PaginationControls
+                currentPage={galleryPage}
+                pageSize={ITEMS_PER_PAGE}
+                totalItems={galleryTotalItems}
+                totalPages={galleryTotalPages}
+                onPageChange={setGalleryPage}
+                itemLabel="imagens"
+              />
+            </CardContent>
+          </CollapsibleContent>
+        </Card>
+      </Collapsible>
 
       <Dialog
         open={cropOpen}
@@ -1223,7 +1266,7 @@ export default function AtrativoDetalhe() {
             {['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sab', 'Dom'].map(d => (
               <span key={d} className="text-[10px] font-medium text-muted-foreground text-center">{d}</span>
             ))}
-            {/* offset: Feb 2026 starts on Sunday â†’ 6 empty cells */}
+            {/* offset: Feb 2026 starts on Sunday -> 6 empty cells */}
             {[...Array(6)].map((_, i) => <div key={`e${i}`} />)}
             {detalhe.heatmapMensal.map(cell => (
               <Tooltip key={cell.dia}>

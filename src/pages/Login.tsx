@@ -31,13 +31,13 @@ export default function Login() {
     if (!ok) {
       toast({
         title: "Erro ao entrar",
-        description: "Credenciais invÃ¡lidas. Verifique e-mail e senha.",
+        description: "Credenciais inválidas. Verifique e-mail e senha.",
         variant: "destructive",
       });
       return;
     }
 
-    // user pode ainda nÃ£o estar atualizado no mesmo tick; entÃ£o buscamos do localStorage como fonte imediata
+    // user pode ainda nao estar atualizado no mesmo tick; entao buscamos do localStorage como fonte imediata
     const saved = localStorage.getItem("eco_auth");
     const role =
       (saved ? (() => { try { return JSON.parse(saved)?.user?.role; } catch { return undefined; } })() : undefined) ??
@@ -62,10 +62,10 @@ export default function Login() {
             <Waves className="h-16 w-16 text-accent" />
           </div>
           <h1 className="text-4xl font-heading font-bold text-white leading-tight">
-            GestÃ£o Inteligente do Ecoturismo
+            Gestão Inteligente do Ecoturismo
           </h1>
           <p className="text-lg text-white/80 max-w-md mx-auto">
-            Plataforma integrada para monitoramento, reservas e sustentabilidade dos atrativos naturais do seu municÃ­pio.
+            Plataforma integrada para monitoramento, reservas e sustentabilidade dos atrativos naturais do seu município.
           </p>
           <div className="flex justify-center gap-8 pt-8">
             <div className="text-center">
@@ -78,7 +78,7 @@ export default function Login() {
             </div>
             <div className="text-center">
               <p className="text-3xl font-heading font-bold text-white">72%</p>
-              <p className="text-sm text-white/70">OcupaÃ§Ã£o</p>
+              <p className="text-sm text-white/70">Ocupação</p>
             </div>
           </div>
         </div>
@@ -100,7 +100,7 @@ export default function Login() {
               </div>
             )}
             <CardTitle className="text-2xl font-heading">{configs.nome_sistema}</CardTitle>
-            <CardDescription>Acesse o painel de gestÃ£o do municÃ­pio</CardDescription>
+            <CardDescription>Acesse o painel de gestão do município</CardDescription>
           </CardHeader>
 
           <CardContent>
@@ -122,7 +122,7 @@ export default function Login() {
                 <Input
                   id="senha"
                   type="password"
-                  placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
+                  placeholder="Digite sua senha"
                   value={senha}
                   onChange={(e) => setSenha(e.target.value)}
                   required
