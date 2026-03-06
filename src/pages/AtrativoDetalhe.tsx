@@ -1,14 +1,18 @@
-import { useCallback, useEffect, useMemo, useState, type ChangeEvent } from 'react';
+﻿import { useCallback, useEffect, useMemo, useState, type ChangeEvent } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Slider } from '@/components/ui/slider';
+import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
   fetchAtrativo,
   atualizarAtrativo,
@@ -19,18 +23,24 @@ import {
   type Atrativo,
   type AtrativoDetalheData,
 } from '@/services/api';
+import { apiClient } from '@/services/apiClient';
 import { atrativoDetalheData } from '@/data/mock-data';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { serializarDescricaoDetalhada, type AtrativoDescricaoDetalhada } from '@/utils/atrativoDescricao';
 import {
   ArrowLeft, Users, Droplets, Mountain, TreePine, Tent, MapPin,
-  BarChart3, Clock, Star, Upload, Trash2, ChevronUp, ChevronDown, ImageIcon, CheckCircle2,
+  BarChart3, Clock, Star, Upload, Trash2, ImageIcon, CheckCircle2, Move,
 } from 'lucide-react';
 import {
   AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip,
   ResponsiveContainer,
 } from 'recharts';
+import Cropper from 'react-easy-crop';
+import { DndContext, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
+import { SortableContext, arrayMove, rectSortingStrategy, useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 const COLORS = [
   'hsl(120, 56%, 24%)',
@@ -48,6 +58,83 @@ const MAX_UPLOAD_FILES = 10;
 const MAX_TOTAL_FILES = 20;
 const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
 
+type CropPixels = { x: number; y: number; width: number; height: number };
+type AtrativoImagem = NonNullable<Atrativo['imagens']>[number];
+
+async function getCroppedImageBlob(imageSrc: string, pixelCrop: CropPixels): Promise<Blob> {
+  const image = new Image();
+  image.crossOrigin = 'anonymous';
+  image.src = imageSrc;
+
+  await new Promise<void>((resolve, reject) => {
+    image.onload = () => resolve();
+    image.onerror = () => reject(new Error('Falha ao carregar imagem para recorte.'));
+  });
+
+  const canvas = document.createElement('canvas');
+  canvas.width = pixelCrop.width;
+  canvas.height = pixelCrop.height;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('Nao foi possivel criar o contexto de recorte.');
+
+  ctx.drawImage(
+    image,
+    pixelCrop.x,
+    pixelCrop.y,
+    pixelCrop.width,
+    pixelCrop.height,
+    0,
+    0,
+    pixelCrop.width,
+    pixelCrop.height
+  );
+
+  return new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (!blob) {
+        reject(new Error('Nao foi possivel gerar a imagem recortada.'));
+        return;
+      }
+      resolve(blob);
+    }, 'image/jpeg', 0.92);
+  });
+}
+
+function SortableImageCard({
+  id,
+  canDrag = true,
+  children,
+}: {
+  id: string;
+  canDrag?: boolean;
+  children: React.ReactNode;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style} className={isDragging ? 'opacity-70' : ''}>
+      <div className="mb-2 flex items-center justify-end">
+        <button
+          type="button"
+          className="inline-flex items-center gap-1 rounded border border-border px-2 py-1 text-xs text-muted-foreground hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+          aria-label="Arrastar para reordenar"
+          disabled={!canDrag}
+          {...(canDrag ? attributes : {})}
+          {...(canDrag ? listeners : {})}
+        >
+          <Move className="h-3 w-3" />
+          Arrastar
+        </button>
+      </div>
+      {children}
+    </div>
+  );
+}
+
 function heatColor(pct: number) {
   if (pct >= 90) return 'bg-destructive';
   if (pct >= 70) return 'bg-warning';
@@ -64,17 +151,19 @@ function formatTipo(tipo: Atrativo['tipo']): string {
 }
 
 function buildMapUrl(params: {
+  termoBusca?: string;
   nome?: string;
   endereco?: string;
   latitude?: number;
   longitude?: number;
 }): string {
+  const termoBusca = String(params.termoBusca ?? '').trim();
   const nome = String(params.nome ?? '').trim();
   const endereco = String(params.endereco ?? '').trim();
   const latitude = params.latitude;
   const longitude = params.longitude;
 
-  const queryParts = [nome, endereco].filter(Boolean);
+  const queryParts = [termoBusca || nome, endereco].filter(Boolean);
   if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
     queryParts.push(`${Number(latitude).toFixed(6)},${Number(longitude).toFixed(6)}`);
   }
@@ -109,20 +198,28 @@ export default function AtrativoDetalhe() {
   const [removingImageId, setRemovingImageId] = useState<string | null>(null);
   const [settingPrincipalId, setSettingPrincipalId] = useState<string | null>(null);
   const [reordering, setReordering] = useState(false);
+  const [municipioLabel, setMunicipioLabel] = useState('');
   const [editForm, setEditForm] = useState<{
     nome: string;
+    termoBusca: string;
     tipo: Atrativo['tipo'];
     status: Atrativo['status'];
-    descricao: string;
+    descricaoDetalhada: AtrativoDescricaoDetalhada;
     capacidadeMaxima: number;
     endereco: string;
     latitude: string;
     longitude: string;
   }>({
     nome: '',
+    termoBusca: '',
     tipo: 'balneario',
     status: 'ativo',
-    descricao: '',
+    descricaoDetalhada: {
+      oQueE: '',
+      experiencia: '',
+      historia: '',
+      sustentabilidade: '',
+    },
     capacidadeMaxima: 1,
     endereco: '',
     latitude: '',
@@ -133,6 +230,20 @@ export default function AtrativoDetalhe() {
   const imagensOrdenadas = useMemo(
     () => [...(atrativo?.imagens ?? [])].sort((a, b) => a.ordem - b.ordem),
     [atrativo?.imagens]
+  );
+  const [imagensDnD, setImagensDnD] = useState<AtrativoImagem[]>([]);
+  const [cropOpen, setCropOpen] = useState(false);
+  const [cropTarget, setCropTarget] = useState<AtrativoImagem | null>(null);
+  const [crop, setCrop] = useState({ x: 0, y: 0 });
+  const [zoom, setZoom] = useState(1);
+  const [cropPixels, setCropPixels] = useState<CropPixels | null>(null);
+  const [cropping, setCropping] = useState(false);
+  const [replaceOriginalOnCrop, setReplaceOriginalOnCrop] = useState(false);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: { distance: 8 },
+    })
   );
 
   const loadAtrativo = useCallback(async (showErrorToast = false, resetOnError = false) => {
@@ -167,18 +278,53 @@ export default function AtrativoDetalhe() {
   }, [id]);
 
   useEffect(() => {
+    setImagensDnD(imagensOrdenadas);
+  }, [imagensOrdenadas]);
+
+  useEffect(() => {
     if (!atrativo) return;
     setEditForm({
       nome: atrativo.nome,
+      termoBusca: atrativo.nome,
       tipo: atrativo.tipo,
       status: atrativo.status,
-      descricao: atrativo.descricao,
+      descricaoDetalhada: {
+        oQueE: atrativo.descricaoDetalhada?.oQueE ?? atrativo.descricao ?? '',
+        experiencia: atrativo.descricaoDetalhada?.experiencia ?? '',
+        historia: atrativo.descricaoDetalhada?.historia ?? '',
+        sustentabilidade: atrativo.descricaoDetalhada?.sustentabilidade ?? '',
+      },
       capacidadeMaxima: atrativo.capacidadeMaxima,
       endereco: atrativo.endereco ?? '',
       latitude: atrativo.latitude ? String(atrativo.latitude) : '',
       longitude: atrativo.longitude ? String(atrativo.longitude) : '',
     });
   }, [atrativo]);
+
+  useEffect(() => {
+    let active = true;
+
+    if (!atrativo?.municipioId) {
+      setMunicipioLabel('');
+      return;
+    }
+
+    apiClient.getMunicipio(String(atrativo.municipioId))
+      .then((m) => {
+        if (!active) return;
+        const nome = String(m?.nome ?? '').trim();
+        const uf = String(m?.uf ?? '').trim();
+        setMunicipioLabel(nome ? `${nome}${uf ? ` - ${uf}` : ''}` : '');
+      })
+      .catch(() => {
+        if (!active) return;
+        setMunicipioLabel('');
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [atrativo?.municipioId]);
 
   if (loading) {
     return (
@@ -194,7 +340,7 @@ export default function AtrativoDetalhe() {
   if (!atrativo) {
     return (
       <div className="flex flex-col items-center justify-center gap-4 py-20">
-        <p className="text-muted-foreground">Atrativo não encontrado.</p>
+        <p className="text-muted-foreground">Atrativo nao encontrado.</p>
         <Button variant="outline" onClick={() => navigate('/gestao/atrativos')}>
           <ArrowLeft className="h-4 w-4 mr-2" /> Voltar
         </Button>
@@ -219,8 +365,8 @@ export default function AtrativoDetalhe() {
     }
     if (capacidadeInvalida) {
       toast({
-        title: 'Capacidade inválida',
-        description: `A capacidade máxima deve ser maior ou igual à ocupação atual (${capacidadeMinima}).`,
+        title: 'Capacidade invalida',
+        description: `A capacidade maxima deve ser maior ou igual a ocupacao atual (${capacidadeMinima}).`,
         variant: 'destructive',
       });
       return;
@@ -240,12 +386,13 @@ export default function AtrativoDetalhe() {
         nome: editForm.nome.trim(),
         tipo: editForm.tipo,
         status: editForm.status,
-        descricao: editForm.descricao.trim(),
+        descricao: serializarDescricaoDetalhada(editForm.descricaoDetalhada),
         capacidadeMaxima: capacidade,
         endereco: editForm.endereco.trim(),
         latitude: parseCoordinateInput(editForm.latitude),
         longitude: parseCoordinateInput(editForm.longitude),
         mapUrl: buildMapUrl({
+          termoBusca: editForm.termoBusca,
           nome: editForm.nome,
           endereco: editForm.endereco,
           latitude: parseCoordinateInput(editForm.latitude),
@@ -258,12 +405,14 @@ export default function AtrativoDetalhe() {
         nome: editForm.nome.trim(),
         tipo: editForm.tipo,
         status: editForm.status,
-        descricao: editForm.descricao.trim(),
+        descricao: editForm.descricaoDetalhada.oQueE.trim(),
+        descricaoDetalhada: { ...editForm.descricaoDetalhada },
         capacidadeMaxima: capacidade,
         endereco: editForm.endereco.trim(),
         latitude: parseCoordinateInput(editForm.latitude),
         longitude: parseCoordinateInput(editForm.longitude),
         mapUrl: buildMapUrl({
+          termoBusca: editForm.termoBusca,
           nome: editForm.nome,
           endereco: editForm.endereco,
           latitude: parseCoordinateInput(editForm.latitude),
@@ -272,9 +421,9 @@ export default function AtrativoDetalhe() {
       } : prev);
 
       setIsEditing(false);
-      toast({ title: 'Atrativo atualizado', description: 'As alterações foram salvas com sucesso.' });
+      toast({ title: 'Atrativo atualizado', description: 'As alteracoes foram salvas com sucesso.' });
     } catch {
-      toast({ title: 'Erro', description: 'Não foi possível salvar as alterações.', variant: 'destructive' });
+      toast({ title: 'Erro', description: 'Nao foi possivel salvar as alteracoes.', variant: 'destructive' });
     } finally {
       setSaving(false);
     }
@@ -418,18 +567,23 @@ export default function AtrativoDetalhe() {
     }
   };
 
-  const handleMoverImagem = async (imagemId: string, direction: -1 | 1) => {
+  const handleDragEndImagem = async (event: DragEndEvent) => {
     if (!id || reordering) return;
 
-    const index = imagensOrdenadas.findIndex((img) => img.id === imagemId);
-    if (index < 0) return;
-    const nextIndex = index + direction;
-    if (nextIndex < 0 || nextIndex >= imagensOrdenadas.length) return;
+    const { active, over } = event;
+    if (!over) return;
+    if (String(active.id) === String(over.id)) return;
 
-    const reordered = [...imagensOrdenadas];
-    const [moved] = reordered.splice(index, 1);
-    reordered.splice(nextIndex, 0, moved);
+    const oldIndex = imagensDnD.findIndex((img) => img.id === String(active.id));
+    const newIndex = imagensDnD.findIndex((img) => img.id === String(over.id));
+    if (oldIndex < 0 || newIndex < 0) return;
 
+    const reordered = arrayMove(imagensDnD, oldIndex, newIndex).map((img, idx) => ({
+      ...img,
+      ordem: idx + 1,
+    }));
+
+    setImagensDnD(reordered);
     setReordering(true);
     try {
       await reordenarImagensAtrativo(
@@ -438,6 +592,7 @@ export default function AtrativoDetalhe() {
       );
       await loadAtrativo();
     } catch (error) {
+      setImagensDnD(imagensOrdenadas);
       toast({
         title: 'Erro ao reordenar',
         description: error instanceof Error ? error.message : 'Nao foi possivel atualizar a ordem das imagens.',
@@ -448,182 +603,364 @@ export default function AtrativoDetalhe() {
     }
   };
 
+  const handleAbrirCrop = (imagem: AtrativoImagem) => {
+    setCropTarget(imagem);
+    setCrop({ x: 0, y: 0 });
+    setZoom(1);
+    setCropPixels(null);
+    setReplaceOriginalOnCrop(false);
+    setCropOpen(true);
+  };
+
+  const handleSalvarCropComoPrincipal = async () => {
+    if (!id || !cropTarget || !cropPixels) return;
+
+    setCropping(true);
+    try {
+      const idsAntes = new Set((atrativo.imagens ?? []).map((img) => img.id));
+      const blob = await getCroppedImageBlob(cropTarget.url, cropPixels);
+      const file = new File([blob], `capa-${cropTarget.id}.jpg`, { type: 'image/jpeg' });
+
+      const upload = await uploadImagensAtrativo(id, {
+        imagens: [file],
+        descricoes: [cropTarget.descricao ?? `Capa de ${atrativo.nome}`],
+      });
+
+      const root = (upload && typeof upload === 'object')
+        ? (upload as Record<string, unknown>)
+        : {};
+      const dataCandidate = root.data ?? root.Data ?? root;
+      const dataNode = (dataCandidate && typeof dataCandidate === 'object')
+        ? (dataCandidate as Record<string, unknown>)
+        : {};
+
+      const imagensAdicionadasRaw =
+        dataNode.imagensAdicionadas
+        ?? dataNode.ImagensAdicionadas
+        ?? [];
+      const imagensAdicionadas = Array.isArray(imagensAdicionadasRaw)
+        ? (imagensAdicionadasRaw as Array<{ id?: string; Id?: string }>)
+        : [];
+
+      let novaImagemId =
+        imagensAdicionadas[0]?.id
+        ?? imagensAdicionadas[0]?.Id;
+
+      if (!novaImagemId) {
+        const atualizado = await fetchAtrativo(id);
+        const imagensAtualizadas = [...(atualizado?.imagens ?? [])].sort((a, b) => b.ordem - a.ordem);
+        const novaImagem = imagensAtualizadas.find((img) => !idsAntes.has(img.id));
+        novaImagemId = novaImagem?.id;
+      }
+
+      if (!novaImagemId) {
+        throw new Error('Nao foi possivel identificar a imagem apos o upload.');
+      }
+
+      await definirImagemPrincipalAtrativo(id, novaImagemId);
+
+      if (replaceOriginalOnCrop && cropTarget.id !== novaImagemId) {
+        try {
+          await removerImagemAtrativo(id, cropTarget.id);
+        } catch {
+          toast({
+            title: 'Capa atualizada',
+            description: 'A capa foi atualizada, mas nao foi possivel remover a imagem original.',
+            variant: 'destructive',
+          });
+        }
+      }
+
+      await loadAtrativo();
+      setCropOpen(false);
+      setCropTarget(null);
+      setCropPixels(null);
+
+      toast({
+        title: 'Capa atualizada',
+        description: 'A imagem recortada foi definida como principal.',
+      });
+    } catch (error) {
+      toast({
+        title: 'Erro ao ajustar capa',
+        description: error instanceof Error ? error.message : 'Nao foi possivel ajustar a capa.',
+        variant: 'destructive',
+      });
+    } finally {
+      setCropping(false);
+    }
+  };
+
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Header */}
-      <div className="flex flex-col gap-3">
+      <div className="sticky top-0 z-20 -mx-2 rounded-md border border-border/70 bg-background/95 px-2 py-2 backdrop-blur supports-[backdrop-filter]:bg-background/80">
         <div className="flex items-center gap-2">
           <Button variant="ghost" size="icon" className="shrink-0" onClick={() => navigate('/gestao/atrativos')}>
             <ArrowLeft className="h-5 w-5" />
           </Button>
-          {canEditAtrativo && (
-            <Button
-              variant={isEditing ? 'outline' : 'default'}
-              size="sm"
-              onClick={() => setIsEditing((v) => !v)}
-            >
-              {isEditing ? 'Cancelar edição' : 'Editar atrativo'}
-            </Button>
-          )}
-          <Badge className={`ml-auto ${
+          <div className="min-w-0 flex-1">
+            <h1 className="text-base sm:text-lg font-heading font-bold truncate">{atrativo.nome}</h1>
+          </div>
+          <Badge className={`hidden sm:inline-flex ${
             atrativo.status === 'ativo' ? 'bg-success text-success-foreground' :
             atrativo.status === 'manutencao' ? 'bg-warning text-warning-foreground' :
             'bg-muted text-muted-foreground'
           }`}>
-            {atrativo.status === 'ativo' ? 'Ativo' : atrativo.status === 'manutencao' ? 'Manutenção' : 'Inativo'}
+            {atrativo.status === 'ativo' ? 'Ativo' : atrativo.status === 'manutencao' ? 'Manutencao' : 'Inativo'}
           </Badge>
+          {canEditAtrativo && !isEditing && (
+            <Button variant="default" size="sm" onClick={() => setIsEditing(true)}>
+              Editar atrativo
+            </Button>
+          )}
+          {canEditAtrativo && isEditing && (
+            <>
+              <Button variant="outline" size="sm" onClick={() => setIsEditing(false)} disabled={saving}>
+                Cancelar
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleSave}
+                disabled={saving || !editForm.nome.trim() || !editForm.endereco.trim() || capacidadeInvalida}
+              >
+                {saving ? 'Salvando...' : 'Salvar alteracoes'}
+              </Button>
+            </>
+          )}
         </div>
-        <div className="flex items-center gap-3">
+        <div className="mt-2 flex items-center gap-3">
           <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
             <Icon className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
           </div>
           <div className="min-w-0">
             <h1 className="text-xl sm:text-2xl font-heading font-bold truncate">{atrativo.nome}</h1>
-            <p className="text-xs sm:text-sm text-muted-foreground capitalize line-clamp-1">{formatTipo(atrativo.tipo)} · {atrativo.descricao}</p>
+            <p className="text-xs sm:text-sm text-muted-foreground capitalize line-clamp-1">
+              {formatTipo(atrativo.tipo)}
+              {municipioLabel ? ` • ${municipioLabel}` : ''}
+            </p>
           </div>
         </div>
       </div>
 
-      {canEditAtrativo && isEditing && (
+
+      {!isEditing && atrativo.descricao && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg font-heading">Edição do Atrativo</CardTitle>
+            <CardTitle className="text-base font-heading">Descricao</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="nome">Nome</Label>
-                <Input
-                  id="nome"
-                  value={editForm.nome}
-                  onChange={(e) => setEditForm((p) => ({ ...p, nome: e.target.value }))}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="capacidade">Capacidade Máxima</Label>
-                <Input
-                  id="capacidade"
-                  type="number"
-                  min={capacidadeMinima}
-                  value={editForm.capacidadeMaxima}
-                  className={capacidadeInvalida ? 'border-destructive focus-visible:ring-destructive' : undefined}
-                  onChange={(e) => setEditForm((p) => ({ ...p, capacidadeMaxima: Number(e.target.value) || 1 }))}
-                />
-                {capacidadeInvalida && (
-                  <p className="text-xs text-destructive">
-                    Capacidade deve ser maior ou igual Ã  ocupaÃ§Ã£o atual ({capacidadeMinima}).
-                  </p>
-                )}
-              </div>
-              <div className="space-y-2">
-                <Label>Tipo</Label>
-                <Select value={editForm.tipo} onValueChange={(v) => setEditForm((p) => ({ ...p, tipo: v as Atrativo['tipo'] }))}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="balneario">Balneário</SelectItem>
-                    <SelectItem value="cachoeira">Cachoeira</SelectItem>
-                    <SelectItem value="trilha">Trilha</SelectItem>
-                    <SelectItem value="parque">Parque</SelectItem>
-                    <SelectItem value="fazenda-ecoturismo">Fazenda Ecoturismo</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Status</Label>
-                <Select value={editForm.status} onValueChange={(v) => setEditForm((p) => ({ ...p, status: v as Atrativo['status'] }))}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="ativo">Ativo</SelectItem>
-                    <SelectItem value="inativo">Inativo</SelectItem>
-                    <SelectItem value="manutencao">Manutenção</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="descricao">Descrição</Label>
-              <Textarea
-                id="descricao"
-                rows={3}
-                value={editForm.descricao}
-                onChange={(e) => setEditForm((p) => ({ ...p, descricao: e.target.value }))}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="endereco">Endereco</Label>
-              <Input
-                id="endereco"
-                value={editForm.endereco}
-                onChange={(e) => setEditForm((p) => ({ ...p, endereco: e.target.value }))}
-              />
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="latitude">Latitude</Label>
-                <Input
-                  id="latitude"
-                  placeholder="-17.745391"
-                  value={editForm.latitude}
-                  onChange={(e) => setEditForm((p) => ({ ...p, latitude: e.target.value }))}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="longitude">Longitude</Label>
-                <Input
-                  id="longitude"
-                  placeholder="-54.556194"
-                  value={editForm.longitude}
-                  onChange={(e) => setEditForm((p) => ({ ...p, longitude: e.target.value }))}
-                />
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <Button type="button" variant="outline" size="sm" onClick={handleUseCurrentLocation}>
-                Usar localizacao atual
-              </Button>
-              {buildMapUrl({
-                nome: editForm.nome,
-                endereco: editForm.endereco,
-                latitude: parseCoordinateInput(editForm.latitude),
-                longitude: parseCoordinateInput(editForm.longitude),
-              }) && (
-                <a
-                  href={buildMapUrl({
-                    nome: editForm.nome,
-                    endereco: editForm.endereco,
-                    latitude: parseCoordinateInput(editForm.latitude),
-                    longitude: parseCoordinateInput(editForm.longitude),
-                  })}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-sm text-primary underline"
-                >
-                  Visualizar no mapa
-                </a>
-              )}
-            </div>
-
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setIsEditing(false)} disabled={saving}>
-                Cancelar
-              </Button>
-              <Button onClick={handleSave} disabled={saving || !editForm.nome.trim() || !editForm.endereco.trim() || capacidadeInvalida}>
-                {saving ? 'Salvando...' : 'Salvar alterações'}
-              </Button>
-            </div>
+          <CardContent>
+            <p className="text-sm text-muted-foreground whitespace-pre-line">{atrativo.descricao}</p>
           </CardContent>
         </Card>
       )}
 
-      <Card>
+      {canEditAtrativo && isEditing && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg font-heading">Edicao do Atrativo</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <Tabs defaultValue="dados" className="space-y-4">
+              <TabsList className="grid w-full grid-cols-4 h-auto p-1 bg-muted/70">
+                <TabsTrigger value="dados" className="data-[state=active]:bg-background data-[state=active]:shadow-sm">Dados</TabsTrigger>
+                <TabsTrigger value="descricao" className="data-[state=active]:bg-background data-[state=active]:shadow-sm">Descricao</TabsTrigger>
+                <TabsTrigger value="localizacao" className="data-[state=active]:bg-background data-[state=active]:shadow-sm">Localizacao</TabsTrigger>
+                <TabsTrigger value="galeria" className="data-[state=active]:bg-background data-[state=active]:shadow-sm">Galeria</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="dados" className="space-y-4">
+                <div className="rounded-md border border-border p-3 sm:p-4">
+                  <p className="mb-3 text-sm font-medium">Dados basicos</p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="nome">Nome</Label>
+                      <Input
+                        id="nome"
+                        value={editForm.nome}
+                        onChange={(e) => setEditForm((p) => ({ ...p, nome: e.target.value }))}
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="capacidade">Capacidade Maxima</Label>
+                      <Input
+                        id="capacidade"
+                        type="number"
+                        min={capacidadeMinima}
+                        value={editForm.capacidadeMaxima}
+                        className={capacidadeInvalida ? 'border-destructive focus-visible:ring-destructive' : undefined}
+                        onChange={(e) => setEditForm((p) => ({ ...p, capacidadeMaxima: Number(e.target.value) || 1 }))}
+                      />
+                      {capacidadeInvalida && (
+                        <p className="text-xs text-destructive">
+                          Capacidade deve ser maior ou igual a ocupacao atual ({capacidadeMinima}).
+                        </p>
+                      )}
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>Tipo</Label>
+                      <Select value={editForm.tipo} onValueChange={(v) => setEditForm((p) => ({ ...p, tipo: v as Atrativo['tipo'] }))}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="balneario">Balneario</SelectItem>
+                          <SelectItem value="cachoeira">Cachoeira</SelectItem>
+                          <SelectItem value="trilha">Trilha</SelectItem>
+                          <SelectItem value="parque">Parque</SelectItem>
+                          <SelectItem value="fazenda-ecoturismo">Fazenda Ecoturismo</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>Status</Label>
+                      <Select value={editForm.status} onValueChange={(v) => setEditForm((p) => ({ ...p, status: v as Atrativo['status'] }))}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="ativo">Ativo</SelectItem>
+                          <SelectItem value="inativo">Inativo</SelectItem>
+                          <SelectItem value="manutencao">Manutencao</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="descricao" className="space-y-4">
+                <div className="space-y-3 rounded-md border border-border p-3">
+                  <p className="text-sm font-medium">Descricao detalhada</p>
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-oquee">O que e</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Descreva o atrativo em ate 2 paragrafos.
+                    </p>
+                    <Textarea
+                      id="edit-oquee"
+                      rows={3}
+                      value={editForm.descricaoDetalhada.oQueE}
+                      onChange={(e) => setEditForm((p) => ({
+                        ...p,
+                        descricaoDetalhada: { ...p.descricaoDetalhada, oQueE: e.target.value },
+                      }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-experiencia">Experiencia</Label>
+                    <p className="text-xs text-muted-foreground">
+                      O que o visitante pode fazer no local.
+                    </p>
+                    <Textarea
+                      id="edit-experiencia"
+                      rows={3}
+                      value={editForm.descricaoDetalhada.experiencia}
+                      onChange={(e) => setEditForm((p) => ({
+                        ...p,
+                        descricaoDetalhada: { ...p.descricaoDetalhada, experiencia: e.target.value },
+                      }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-historia">Historia</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Origem do atrativo.
+                    </p>
+                    <Textarea
+                      id="edit-historia"
+                      rows={3}
+                      value={editForm.descricaoDetalhada.historia}
+                      onChange={(e) => setEditForm((p) => ({
+                        ...p,
+                        descricaoDetalhada: { ...p.descricaoDetalhada, historia: e.target.value },
+                      }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-sustentabilidade">Sustentabilidade</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Praticas ambientais do local.
+                    </p>
+                    <Textarea
+                      id="edit-sustentabilidade"
+                      rows={3}
+                      value={editForm.descricaoDetalhada.sustentabilidade}
+                      onChange={(e) => setEditForm((p) => ({
+                        ...p,
+                        descricaoDetalhada: { ...p.descricaoDetalhada, sustentabilidade: e.target.value },
+                      }))}
+                    />
+                  </div>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="localizacao" className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="endereco">Endereco</Label>
+                  <Input
+                    id="endereco"
+                    value={editForm.endereco}
+                    onChange={(e) => setEditForm((p) => ({ ...p, endereco: e.target.value }))}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="termo-busca">Termo de busca no Google Maps</Label>
+                  <Input
+                    id="termo-busca"
+                    placeholder="Ex: Balneario 7 Quedas do Didi"
+                    value={editForm.termoBusca}
+                    onChange={(e) => setEditForm((p) => ({ ...p, termoBusca: e.target.value }))}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Este termo e usado na pesquisa ao abrir o Google Maps.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="latitude">Latitude</Label>
+                    <Input
+                      id="latitude"
+                      placeholder="-17.745391"
+                      value={editForm.latitude}
+                      onChange={(e) => setEditForm((p) => ({ ...p, latitude: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="longitude">Longitude</Label>
+                    <Input
+                      id="longitude"
+                      placeholder="-54.556194"
+                      value={editForm.longitude}
+                      onChange={(e) => setEditForm((p) => ({ ...p, longitude: e.target.value }))}
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Button type="button" variant="outline" size="sm" onClick={handleUseCurrentLocation}>
+                    Usar localizacao atual
+                  </Button>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="galeria" className="space-y-3">
+                <p className="text-sm text-muted-foreground">
+                  Gerencie as imagens na secao de galeria logo abaixo.
+                </p>
+                <Button type="button" variant="outline" size="sm" onClick={() => document.getElementById('galeria-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>
+                  Ir para galeria
+                </Button>
+              </TabsContent>
+            </Tabs>
+
+          </CardContent>
+        </Card>
+      )}
+
+      <Card id="galeria-section">
         <CardHeader>
           <CardTitle className="text-lg font-heading">Galeria de Imagens</CardTitle>
         </CardHeader>
@@ -693,72 +1030,148 @@ export default function AtrativoDetalhe() {
               <p className="text-sm text-muted-foreground">Este atrativo ainda nao possui imagens.</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-              {imagensOrdenadas.map((imagem, index) => (
-                <div key={imagem.id} className="rounded-lg border border-border overflow-hidden bg-card">
-                  <div className="aspect-video bg-muted">
-                    <img src={imagem.url} alt={imagem.descricao || `Imagem ${index + 1}`} className="h-full w-full object-cover" />
-                  </div>
-                  <div className="p-3 space-y-2">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="text-xs text-muted-foreground">Ordem: {imagem.ordem}</p>
-                      {imagem.principal && (
-                        <Badge className="bg-success text-success-foreground">
-                          <CheckCircle2 className="h-3 w-3 mr-1" />
-                          Principal
-                        </Badge>
-                      )}
-                    </div>
-                    <p className="text-sm line-clamp-2">{imagem.descricao || 'Sem descricao'}</p>
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={canEditAtrativo ? handleDragEndImagem : undefined}
+            >
+              <SortableContext items={imagensDnD.map((img) => img.id)} strategy={rectSortingStrategy}>
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                  {imagensDnD.map((imagem, index) => (
+                    <SortableImageCard key={imagem.id} id={imagem.id} canDrag={canEditAtrativo && !reordering}>
+                      <div className="rounded-lg border border-border overflow-hidden bg-card">
+                        <div className="aspect-video bg-muted">
+                          <img src={imagem.url} alt={imagem.descricao || `Imagem ${index + 1}`} className="h-full w-full object-cover" />
+                        </div>
+                        <div className="p-3 space-y-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="text-xs text-muted-foreground">Ordem: {imagem.ordem}</p>
+                            {imagem.principal && (
+                              <Badge className="bg-success text-success-foreground">
+                                <CheckCircle2 className="h-3 w-3 mr-1" />
+                                Principal
+                              </Badge>
+                            )}
+                          </div>
+                          <p className="text-sm line-clamp-2">{imagem.descricao || 'Sem descricao'}</p>
 
-                    {canEditAtrativo && (
-                      <div className="flex flex-wrap gap-2 pt-1">
-                        {!imagem.principal && (
-                          <Button
-                            size="sm"
-                            variant="secondary"
-                            disabled={settingPrincipalId === imagem.id}
-                            onClick={() => handleDefinirPrincipal(imagem.id)}
-                          >
-                            {settingPrincipalId === imagem.id ? 'Atualizando...' : 'Definir principal'}
-                          </Button>
-                        )}
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          disabled={index === 0 || reordering}
-                          onClick={() => handleMoverImagem(imagem.id, -1)}
-                        >
-                          <ChevronUp className="h-4 w-4 mr-1" />
-                          Subir
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          disabled={index === imagensOrdenadas.length - 1 || reordering}
-                          onClick={() => handleMoverImagem(imagem.id, 1)}
-                        >
-                          <ChevronDown className="h-4 w-4 mr-1" />
-                          Descer
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          disabled={removingImageId === imagem.id}
-                          onClick={() => handleRemoverImagem(imagem.id)}
-                        >
-                          <Trash2 className="h-4 w-4 mr-1" />
-                          {removingImageId === imagem.id ? 'Removendo...' : 'Remover'}
-                        </Button>
+                          {canEditAtrativo && (
+                            <div className="flex flex-wrap gap-2 pt-1">
+                              {!imagem.principal && (
+                                <Button
+                                  size="sm"
+                                  variant="secondary"
+                                  disabled={settingPrincipalId === imagem.id}
+                                  onClick={() => handleDefinirPrincipal(imagem.id)}
+                                >
+                                  {settingPrincipalId === imagem.id ? 'Atualizando...' : 'Definir principal'}
+                                </Button>
+                              )}
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleAbrirCrop(imagem)}
+                              >
+                                Ajustar capa
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="destructive"
+                                disabled={removingImageId === imagem.id}
+                                onClick={() => handleRemoverImagem(imagem.id)}
+                              >
+                                <Trash2 className="h-4 w-4 mr-1" />
+                                {removingImageId === imagem.id ? 'Removendo...' : 'Remover'}
+                              </Button>
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    )}
-                  </div>
+                    </SortableImageCard>
+                  ))}
                 </div>
-              ))}
-            </div>
+              </SortableContext>
+            </DndContext>
           )}
         </CardContent>
       </Card>
+
+      <Dialog
+        open={cropOpen}
+        onOpenChange={(open) => {
+          if (cropping) return;
+          setCropOpen(open);
+          if (!open) {
+            setCropTarget(null);
+            setCropPixels(null);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Ajustar capa principal</DialogTitle>
+            <DialogDescription>
+              Ajuste o enquadramento e salve para criar uma nova capa principal.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="relative h-[320px] w-full overflow-hidden rounded-md bg-muted">
+              {cropTarget?.url && (
+                <Cropper
+                  image={cropTarget.url}
+                  crop={crop}
+                  zoom={zoom}
+                  aspect={16 / 9}
+                  onCropChange={setCrop}
+                  onZoomChange={setZoom}
+                  onCropComplete={(_, pixels) => setCropPixels(pixels as CropPixels)}
+                />
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label>Zoom</Label>
+              <Slider
+                value={[zoom]}
+                min={1}
+                max={3}
+                step={0.1}
+                onValueChange={(value) => setZoom(value[0] ?? 1)}
+              />
+            </div>
+            <div className="flex items-center justify-between rounded-md border border-border p-3">
+              <div className="space-y-1">
+                <p className="text-sm font-medium">Substituir original</p>
+                <p className="text-xs text-muted-foreground">
+                  Remove a imagem original apos salvar a nova capa.
+                </p>
+              </div>
+              <Switch
+                checked={replaceOriginalOnCrop}
+                onCheckedChange={setReplaceOriginalOnCrop}
+                disabled={cropping}
+                aria-label="Substituir imagem original"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setCropOpen(false)}
+              disabled={cropping}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              onClick={handleSalvarCropComoPrincipal}
+              disabled={cropping || !cropPixels}
+            >
+              {cropping ? 'Salvando...' : 'Salvar como capa principal'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Quick stats */}
       <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4">
@@ -766,7 +1179,7 @@ export default function AtrativoDetalhe() {
           <CardContent className="p-3 sm:p-4 flex items-center gap-2 sm:gap-3">
             <Users className="h-5 w-5 sm:h-6 sm:w-6 text-primary/60 shrink-0" />
             <div className="min-w-0">
-              <p className="text-[10px] sm:text-xs text-muted-foreground">Ocupação Atual</p>
+              <p className="text-[10px] sm:text-xs text-muted-foreground">Ocupacao Atual</p>
               <p className="text-lg sm:text-xl font-heading font-bold">{pctOcupacao}%</p>
             </div>
           </CardContent>
@@ -784,7 +1197,7 @@ export default function AtrativoDetalhe() {
           <CardContent className="p-3 sm:p-4 flex items-center gap-2 sm:gap-3">
             <Clock className="h-5 w-5 sm:h-6 sm:w-6 text-secondary/60 shrink-0" />
             <div className="min-w-0">
-              <p className="text-[10px] sm:text-xs text-muted-foreground">Perm. Média</p>
+              <p className="text-[10px] sm:text-xs text-muted-foreground">Perm. Media</p>
               <p className="text-lg sm:text-xl font-heading font-bold">3.8h</p>
             </div>
           </CardContent>
@@ -793,7 +1206,7 @@ export default function AtrativoDetalhe() {
           <CardContent className="p-3 sm:p-4 flex items-center gap-2 sm:gap-3">
             <Star className="h-5 w-5 sm:h-6 sm:w-6 text-warning/60 shrink-0" />
             <div className="min-w-0">
-              <p className="text-[10px] sm:text-xs text-muted-foreground">Satisfação</p>
+              <p className="text-[10px] sm:text-xs text-muted-foreground">Satisfacao</p>
               <p className="text-lg sm:text-xl font-heading font-bold">4.2/5</p>
             </div>
           </CardContent>
@@ -803,14 +1216,14 @@ export default function AtrativoDetalhe() {
       {/* Heatmap Calendar */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg font-heading">Calendário de Ocupação — Fevereiro</CardTitle>
+          <CardTitle className="text-lg font-heading">Calendario de Ocupacao - Fevereiro</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-7 gap-1 sm:gap-1.5">
-            {['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'].map(d => (
+            {['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sab', 'Dom'].map(d => (
               <span key={d} className="text-[10px] font-medium text-muted-foreground text-center">{d}</span>
             ))}
-            {/* offset: Feb 2026 starts on Sunday → 6 empty cells */}
+            {/* offset: Feb 2026 starts on Sunday â†’ 6 empty cells */}
             {[...Array(6)].map((_, i) => <div key={`e${i}`} />)}
             {detalhe.heatmapMensal.map(cell => (
               <Tooltip key={cell.dia}>
@@ -820,7 +1233,7 @@ export default function AtrativoDetalhe() {
                   </div>
                 </TooltipTrigger>
                 <TooltipContent>
-                  <p>Dia {cell.dia}: {cell.ocupacao}% ocupação</p>
+                  <p>Dia {cell.dia}: {cell.ocupacao}% ocupacao</p>
                 </TooltipContent>
               </Tooltip>
             ))}
@@ -829,17 +1242,17 @@ export default function AtrativoDetalhe() {
             <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded bg-primary/25" /> {'<40%'}</span>
             <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded bg-primary/70" /> 40-69%</span>
             <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded bg-warning" /> 70-89%</span>
-            <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded bg-destructive" /> ≥90%</span>
+            <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded bg-destructive" /> {'>=90%'}</span>
           </div>
         </CardContent>
       </Card>
 
       {/* Charts grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Ocupação Histórica */}
+        {/* Ocupacao Historica */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg font-heading">Ocupação Histórica (%)</CardTitle>
+            <CardTitle className="text-lg font-heading">Ocupacao Historica (%)</CardTitle>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={250}>
@@ -863,7 +1276,7 @@ export default function AtrativoDetalhe() {
         {/* Visitantes por Hora */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg font-heading">Fluxo por Horário (Hoje)</CardTitle>
+            <CardTitle className="text-lg font-heading">Fluxo por Horario (Hoje)</CardTitle>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={250}>
@@ -878,10 +1291,10 @@ export default function AtrativoDetalhe() {
           </CardContent>
         </Card>
 
-        {/* Satisfação */}
+        {/* Satisfacao */}
         <Card className="lg:col-span-2">
           <CardHeader>
-            <CardTitle className="text-lg font-heading">Pesquisa de Satisfação</CardTitle>
+            <CardTitle className="text-lg font-heading">Pesquisa de Satisfacao</CardTitle>
           </CardHeader>
           <CardContent className="flex items-center justify-center">
             <ResponsiveContainer width="100%" height={220}>
@@ -910,6 +1323,8 @@ export default function AtrativoDetalhe() {
     </div>
   );
 }
+
+
 
 
 

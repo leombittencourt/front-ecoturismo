@@ -16,10 +16,12 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { fetchAtrativos, criarAtrativo } from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { type Atrativo } from '@/services/apiClient';
+import { serializarDescricaoDetalhada, type AtrativoDescricaoDetalhada } from '@/utils/atrativoDescricao';
 import { MapPin, Users, Droplets, Mountain, TreePine, Tent, Plus } from 'lucide-react';
 
 const tipoIcons: Record<string, React.ElementType> = {
@@ -69,17 +71,19 @@ function imagemPrincipal(atrativo: Atrativo): string {
 }
 
 function buildMapUrl(params: {
+  termoBusca?: string;
   nome?: string;
   endereco?: string;
   latitude?: number;
   longitude?: number;
 }): string {
+  const termoBusca = String(params.termoBusca ?? '').trim();
   const nome = String(params.nome ?? '').trim();
   const endereco = String(params.endereco ?? '').trim();
   const latitude = params.latitude;
   const longitude = params.longitude;
 
-  const queryParts = [nome, endereco].filter(Boolean);
+  const queryParts = [termoBusca || nome, endereco].filter(Boolean);
   if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
     queryParts.push(`${Number(latitude).toFixed(6)},${Number(longitude).toFixed(6)}`);
   }
@@ -110,18 +114,25 @@ export default function Atrativos() {
   const [creating, setCreating] = useState(false);
   const [newForm, setNewForm] = useState<{
     nome: string;
+    termoBusca: string;
     tipo: Atrativo['tipo'];
     status: Atrativo['status'];
-    descricao: string;
+    descricaoDetalhada: AtrativoDescricaoDetalhada;
     capacidadeMaxima: number;
     endereco: string;
     latitude: string;
     longitude: string;
   }>({
     nome: '',
+    termoBusca: '',
     tipo: 'balneario',
     status: 'ativo',
-    descricao: '',
+    descricaoDetalhada: {
+      oQueE: '',
+      experiencia: '',
+      historia: '',
+      sustentabilidade: '',
+    },
     capacidadeMaxima: 1,
     endereco: '',
     latitude: '',
@@ -161,13 +172,14 @@ export default function Atrativos() {
         tipo: newForm.tipo,
         municipioId: user.municipioId,
         status: newForm.status,
-        descricao: newForm.descricao.trim(),
+        descricao: serializarDescricaoDetalhada(newForm.descricaoDetalhada),
         capacidadeMaxima: Math.max(1, Number(newForm.capacidadeMaxima) || 1),
         ocupacaoAtual: 0,
         endereco: newForm.endereco.trim(),
         latitude: parseCoordinateInput(newForm.latitude),
         longitude: parseCoordinateInput(newForm.longitude),
         mapUrl: buildMapUrl({
+          termoBusca: newForm.termoBusca,
           nome: newForm.nome,
           endereco: newForm.endereco,
           latitude: parseCoordinateInput(newForm.latitude),
@@ -179,9 +191,15 @@ export default function Atrativos() {
       setCreateOpen(false);
       setNewForm({
         nome: '',
+        termoBusca: '',
         tipo: 'balneario',
         status: 'ativo',
-        descricao: '',
+        descricaoDetalhada: {
+          oQueE: '',
+          experiencia: '',
+          historia: '',
+          sustentabilidade: '',
+        },
         capacidadeMaxima: 1,
         endereco: '',
         latitude: '',
@@ -245,109 +263,194 @@ export default function Atrativos() {
       </div>
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] overflow-hidden">
           <DialogHeader>
             <DialogTitle>Novo atrativo</DialogTitle>
             <DialogDescription>Preencha os dados para cadastrar um novo atrativo turistico.</DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="novo-nome">Nome</Label>
-              <Input
-                id="novo-nome"
-                value={newForm.nome}
-                onChange={(e) => setNewForm((p) => ({ ...p, nome: e.target.value }))}
-              />
-            </div>
+          <div className="max-h-[68vh] overflow-y-auto pr-1">
+            <Tabs defaultValue="dados" className="space-y-4">
+              <TabsList className="grid w-full grid-cols-3 h-auto p-1 bg-muted/70">
+                <TabsTrigger value="dados" className="data-[state=active]:bg-background data-[state=active]:shadow-sm">Dados</TabsTrigger>
+                <TabsTrigger value="descricao" className="data-[state=active]:bg-background data-[state=active]:shadow-sm">Descricao</TabsTrigger>
+                <TabsTrigger value="localizacao" className="data-[state=active]:bg-background data-[state=active]:shadow-sm">Localizacao</TabsTrigger>
+              </TabsList>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <TabsContent value="dados" className="space-y-4">
+              <div className="rounded-md border border-border p-3 sm:p-4">
+                <p className="mb-3 text-sm font-medium">Dados basicos</p>
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="novo-nome">Nome</Label>
+                    <Input
+                      id="novo-nome"
+                      value={newForm.nome}
+                      onChange={(e) => setNewForm((p) => ({ ...p, nome: e.target.value }))}
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="novo-capacidade">Capacidade maxima</Label>
+                    <Input
+                      id="novo-capacidade"
+                      type="number"
+                      min={1}
+                      value={newForm.capacidadeMaxima}
+                      onChange={(e) => setNewForm((p) => ({ ...p, capacidadeMaxima: Math.max(1, Number(e.target.value) || 1) }))}
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label>Tipo</Label>
+                    <Select value={newForm.tipo} onValueChange={(v) => setNewForm((p) => ({ ...p, tipo: v as Atrativo['tipo'] }))}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="balneario">Balneario</SelectItem>
+                        <SelectItem value="cachoeira">Cachoeira</SelectItem>
+                        <SelectItem value="trilha">Trilha</SelectItem>
+                        <SelectItem value="parque">Parque</SelectItem>
+                        <SelectItem value="fazenda-ecoturismo">Fazenda Ecoturismo</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label>Status</Label>
+                    <Select value={newForm.status} onValueChange={(v) => setNewForm((p) => ({ ...p, status: v as Atrativo['status'] }))}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="ativo">Ativo</SelectItem>
+                        <SelectItem value="inativo">Inativo</SelectItem>
+                        <SelectItem value="manutencao">Manutencao</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </div>
+            </TabsContent>
+
+              <TabsContent value="descricao" className="space-y-4">
+                <div className="space-y-3 rounded-md border border-border p-3">
+                  <p className="text-sm font-medium">Descricao detalhada</p>
+                  <div className="space-y-2">
+                    <Label htmlFor="novo-oquee">O que e</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Descreva o atrativo em ate 2 paragrafos.
+                    </p>
+                    <Textarea
+                      id="novo-oquee"
+                      rows={3}
+                      value={newForm.descricaoDetalhada.oQueE}
+                      onChange={(e) => setNewForm((p) => ({
+                        ...p,
+                        descricaoDetalhada: { ...p.descricaoDetalhada, oQueE: e.target.value },
+                      }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="novo-experiencia">Experiencia</Label>
+                    <p className="text-xs text-muted-foreground">
+                      O que o visitante pode fazer no local.
+                    </p>
+                    <Textarea
+                      id="novo-experiencia"
+                      rows={3}
+                      value={newForm.descricaoDetalhada.experiencia}
+                      onChange={(e) => setNewForm((p) => ({
+                        ...p,
+                        descricaoDetalhada: { ...p.descricaoDetalhada, experiencia: e.target.value },
+                      }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="novo-historia">Historia</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Origem do atrativo.
+                    </p>
+                    <Textarea
+                      id="novo-historia"
+                      rows={3}
+                      value={newForm.descricaoDetalhada.historia}
+                      onChange={(e) => setNewForm((p) => ({
+                        ...p,
+                        descricaoDetalhada: { ...p.descricaoDetalhada, historia: e.target.value },
+                      }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="novo-sustentabilidade">Sustentabilidade</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Praticas ambientais do local.
+                    </p>
+                    <Textarea
+                      id="novo-sustentabilidade"
+                      rows={3}
+                      value={newForm.descricaoDetalhada.sustentabilidade}
+                      onChange={(e) => setNewForm((p) => ({
+                        ...p,
+                        descricaoDetalhada: { ...p.descricaoDetalhada, sustentabilidade: e.target.value },
+                      }))}
+                    />
+                  </div>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="localizacao" className="space-y-4">
               <div className="space-y-2">
-                <Label>Tipo</Label>
-                <Select value={newForm.tipo} onValueChange={(v) => setNewForm((p) => ({ ...p, tipo: v as Atrativo['tipo'] }))}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="balneario">Balneario</SelectItem>
-                    <SelectItem value="cachoeira">Cachoeira</SelectItem>
-                    <SelectItem value="trilha">Trilha</SelectItem>
-                    <SelectItem value="parque">Parque</SelectItem>
-                    <SelectItem value="fazenda-ecoturismo">Fazenda Ecoturismo</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Label htmlFor="novo-endereco">Endereco</Label>
+                <Input
+                  id="novo-endereco"
+                  value={newForm.endereco}
+                  onChange={(e) => setNewForm((p) => ({ ...p, endereco: e.target.value }))}
+                />
               </div>
 
               <div className="space-y-2">
-                <Label>Status</Label>
-                <Select value={newForm.status} onValueChange={(v) => setNewForm((p) => ({ ...p, status: v as Atrativo['status'] }))}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="ativo">Ativo</SelectItem>
-                    <SelectItem value="inativo">Inativo</SelectItem>
-                    <SelectItem value="manutencao">Manutencao</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Label htmlFor="novo-termo-busca">Termo de busca no Google Maps</Label>
+                <Input
+                  id="novo-termo-busca"
+                  placeholder="Ex: Balneario 7 Quedas do Didi"
+                  value={newForm.termoBusca}
+                  onChange={(e) => setNewForm((p) => ({ ...p, termoBusca: e.target.value }))}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Este termo e usado na pesquisa ao abrir o Google Maps.
+                </p>
               </div>
-            </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="novo-capacidade">Capacidade maxima</Label>
-              <Input
-                id="novo-capacidade"
-                type="number"
-                min={1}
-                value={newForm.capacidadeMaxima}
-                onChange={(e) => setNewForm((p) => ({ ...p, capacidadeMaxima: Math.max(1, Number(e.target.value) || 1) }))}
-              />
-            </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="novo-latitude">Latitude</Label>
+                  <Input
+                    id="novo-latitude"
+                    placeholder="-17.745391"
+                    value={newForm.latitude}
+                    onChange={(e) => setNewForm((p) => ({ ...p, latitude: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="novo-longitude">Longitude</Label>
+                  <Input
+                    id="novo-longitude"
+                    placeholder="-54.556194"
+                    value={newForm.longitude}
+                    onChange={(e) => setNewForm((p) => ({ ...p, longitude: e.target.value }))}
+                  />
+                </div>
+              </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="novo-descricao">Descricao</Label>
-              <Textarea
-                id="novo-descricao"
-                rows={3}
-                value={newForm.descricao}
-                onChange={(e) => setNewForm((p) => ({ ...p, descricao: e.target.value }))}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="novo-endereco">Endereco</Label>
-              <Input
-                id="novo-endereco"
-                value={newForm.endereco}
-                onChange={(e) => setNewForm((p) => ({ ...p, endereco: e.target.value }))}
-              />
-            </div>
-
-            <div className="flex items-center gap-2">
-              <Button type="button" variant="outline" size="sm" onClick={handleUseCurrentLocation}>
-                Usar localizacao atual
-              </Button>
-              {buildMapUrl({
-                nome: newForm.nome,
-                endereco: newForm.endereco,
-                latitude: parseCoordinateInput(newForm.latitude),
-                longitude: parseCoordinateInput(newForm.longitude),
-              }) && (
-                <a
-                  href={buildMapUrl({
-                    nome: newForm.nome,
-                    endereco: newForm.endereco,
-                    latitude: parseCoordinateInput(newForm.latitude),
-                    longitude: parseCoordinateInput(newForm.longitude),
-                  })}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-sm text-primary underline"
-                >
-                  Visualizar no mapa
-                </a>
-              )}
-            </div>
+              <div className="flex items-center gap-2">
+                <Button type="button" variant="outline" size="sm" onClick={handleUseCurrentLocation}>
+                  Usar localizacao atual
+                </Button>
+              </div>
+              </TabsContent>
+            </Tabs>
           </div>
 
           <DialogFooter>

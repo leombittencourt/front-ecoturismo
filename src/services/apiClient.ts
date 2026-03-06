@@ -1,4 +1,5 @@
 import { http } from "./http";
+import { parseDescricaoAtrativo, type AtrativoDescricaoDetalhada } from "@/utils/atrativoDescricao";
 
 export type LoginRequest = { email: string; password: string };
 
@@ -30,6 +31,15 @@ export interface Municipio {
   nome: string;
   uf: string;
   logo?: string;
+  logoTelaLogin?: string | null;
+  logoAreaPublica?: string | null;
+}
+
+export interface RoleOption {
+  id: string;
+  nome: string;
+  descricao?: string | null;
+  isActive?: boolean;
 }
 
 export type ConfiguracoesDto = { chave: string; valor: string | null };
@@ -121,6 +131,7 @@ export interface Atrativo {
   ocupacaoAtual: number;
   status: 'ativo' | 'inativo' | 'manutencao';
   descricao: string;
+  descricaoDetalhada?: AtrativoDescricaoDetalhada;
   endereco?: string;
   latitude?: number;
   longitude?: number;
@@ -173,7 +184,7 @@ export type ReordenarImagensAtrativoRequestItem = {
   ordem: number;
 };
 
-type UploadImagensAtrativoResponse = {
+export type UploadImagensAtrativoResponse = {
   atrativoId?: string;
   atrativoNome?: string;
   totalImagens?: number;
@@ -260,6 +271,43 @@ export type CriarReservaRequest = {
 export type ListAtrativosRequest = {
   MunicipioId?: string | null;
 };
+
+export type CriarUsuarioRequest = {
+  Nome: string;
+  Email: string;
+  Password: string;
+  RoleId: string;
+  MunicipioId?: string | null;
+  AtrativoId?: string | null;
+  Telefone?: string | null;
+  Cpf?: string | null;
+};
+
+export type AtualizarUsuarioRequest = Partial<{
+  Nome: string;
+  Email: string;
+  Password: string;
+  RoleId: string;
+  MunicipioId: string | null;
+  AtrativoId: string | null;
+  Telefone: string | null;
+  Cpf: string | null;
+}>;
+
+export interface UsuarioSistema {
+  id: string;
+  nome: string;
+  email: string;
+  roleId?: string | null;
+  roleNome?: string | null;
+  municipioId?: string | null;
+  municipioNome?: string | null;
+  atrativoId?: string | null;
+  atrativoNome?: string | null;
+  telefone?: string | null;
+  cpf?: string | null;
+  ativo?: boolean;
+}
 
 export type ValidarTicketRequest = {
   Token: string;
@@ -462,6 +510,16 @@ function parseAtrativo(raw: any): Atrativo {
   const principal = imagens.find((img) => img.principal)?.url;
   const primeira = imagens.slice().sort((a, b) => a.ordem - b.ordem)[0]?.url;
 
+  const descricaoRaw =
+    raw?.descricaoDetalhada ??
+    raw?.DescricaoDetalhada ??
+    raw?.detalhamento ??
+    raw?.Detalhamento ??
+    raw?.descricao ??
+    raw?.Descricao ??
+    '';
+  const descricaoParsed = parseDescricaoAtrativo(descricaoRaw);
+
   return {
     id: String(raw?.id ?? raw?.Id ?? ''),
     nome: String(raw?.nome ?? raw?.Nome ?? ''),
@@ -470,7 +528,8 @@ function parseAtrativo(raw: any): Atrativo {
     capacidadeMaxima: Number(raw?.capacidadeMaxima ?? raw?.CapacidadeMaxima ?? 0),
     ocupacaoAtual: Number(raw?.ocupacaoAtual ?? raw?.OcupacaoAtual ?? 0),
     status: (raw?.status ?? raw?.Status ?? 'ativo') as Atrativo['status'],
-    descricao: String(raw?.descricao ?? raw?.Descricao ?? ''),
+    descricao: descricaoParsed.resumo,
+    descricaoDetalhada: descricaoParsed.detalhada,
     endereco: String(
       raw?.endereco ??
       raw?.Endereco ??
@@ -497,6 +556,53 @@ function parseAtrativo(raw: any): Atrativo {
   };
 }
 
+function parseMunicipio(raw: any): Municipio {
+  const logoNode = raw?.logo ?? raw?.Logo ?? null;
+  const logoUrl =
+    (typeof logoNode === 'object' && logoNode !== null
+      ? String(logoNode.imagemUrl ?? logoNode.ImagemUrl ?? logoNode.url ?? logoNode.Url ?? '')
+      : String(logoNode ?? '')) || '';
+
+  return {
+    id: String(raw?.id ?? raw?.Id ?? ''),
+    nome: String(raw?.nome ?? raw?.Nome ?? ''),
+    uf: String(raw?.uf ?? raw?.Uf ?? ''),
+    logo: logoUrl || undefined,
+    logoTelaLogin: String(raw?.logoTelaLogin ?? raw?.LogoTelaLogin ?? '').trim() || null,
+    logoAreaPublica: String(raw?.logoAreaPublica ?? raw?.LogoAreaPublica ?? '').trim() || null,
+  };
+}
+
+function parseRole(raw: any): RoleOption {
+  return {
+    id: String(raw?.id ?? raw?.Id ?? ''),
+    nome: String(raw?.name ?? raw?.Name ?? raw?.nome ?? raw?.Nome ?? ''),
+    descricao: String(raw?.description ?? raw?.Description ?? raw?.descricao ?? raw?.Descricao ?? '').trim() || null,
+    isActive: Boolean(raw?.isActive ?? raw?.IsActive ?? true),
+  };
+}
+
+function parseUsuario(raw: any): UsuarioSistema {
+  const roleNode = raw?.role ?? raw?.Role ?? null;
+  const municipioNode = raw?.municipio ?? raw?.Municipio ?? null;
+  const atrativoNode = raw?.atrativo ?? raw?.Atrativo ?? null;
+
+  return {
+    id: String(raw?.id ?? raw?.Id ?? ''),
+    nome: String(raw?.nome ?? raw?.Nome ?? ''),
+    email: String(raw?.email ?? raw?.Email ?? ''),
+    roleId: String(raw?.roleId ?? raw?.RoleId ?? roleNode?.id ?? roleNode?.Id ?? '').trim() || null,
+    roleNome: String(raw?.roleNome ?? raw?.RoleNome ?? raw?.role ?? raw?.Role ?? roleNode?.name ?? roleNode?.Name ?? '').trim() || null,
+    municipioId: String(raw?.municipioId ?? raw?.MunicipioId ?? municipioNode?.id ?? municipioNode?.Id ?? '').trim() || null,
+    municipioNome: String(raw?.municipioNome ?? raw?.MunicipioNome ?? raw?.municipio ?? raw?.Municipio ?? municipioNode?.nome ?? municipioNode?.Nome ?? '').trim() || null,
+    atrativoId: String(raw?.atrativoId ?? raw?.AtrativoId ?? atrativoNode?.id ?? atrativoNode?.Id ?? '').trim() || null,
+    atrativoNome: String(raw?.atrativoNome ?? raw?.AtrativoNome ?? raw?.atrativo ?? raw?.Atrativo ?? atrativoNode?.nome ?? atrativoNode?.Nome ?? '').trim() || null,
+    telefone: String(raw?.telefone ?? raw?.Telefone ?? '').trim() || null,
+    cpf: String(raw?.cpf ?? raw?.Cpf ?? '').trim() || null,
+    ativo: Boolean(raw?.ativo ?? raw?.Ativo ?? true),
+  };
+}
+
 export const apiClient = {
   
   health: () => http.get<string>("/health"),
@@ -506,10 +612,18 @@ export const apiClient = {
 
   // Configurações
   getConfiguracoes: () => http.get<ConfiguracoesDto[]>("/configuracoes"), 
-  putConfiguracoes: (updates: ConfiguracoesDto[]) => http.put<void>("/configuracoes", { updates }),
+  putConfiguracoes: (updates: ConfiguracoesDto[]) =>
+    http.put<void>("/configuracoes", { configs: updates, updates }),
 
   // Municípios
-  getMunicipio: (id: string) => http.get<Municipio>(`/municipios/${id}`),
+  listarMunicipios: () => http.get<any[]>("/municipios").then((items) => (items ?? []).map(parseMunicipio)),
+  getMunicipio: (id: string) => http.get<any>(`/municipios/${id}`).then(parseMunicipio),
+  listarRoles: () =>
+    http.get<any[]>("/roles").then((items) =>
+      (items ?? [])
+        .map(parseRole)
+        .filter((r) => Boolean(r.id) && Boolean(r.nome) && (r.isActive ?? true))
+    ),
   buscarEndereco: (query: string) =>
     http.get<Array<{
       displayName?: string;
@@ -661,8 +775,18 @@ export const apiClient = {
     http.del<void>(`/uploads/atrativos/${encodeURIComponent(atrativoId)}/imagens/${encodeURIComponent(imagemId)}`),
 
   definirImagemPrincipalAtrativo: (atrativoId: string, imagemId: string) =>
-    http.put<void>(`/uploads/atrativos/${encodeURIComponent(atrativoId)}/imagens/${encodeURIComponent(imagemId)}/principal`),
+    http.put<void>(
+      `/uploads/atrativos/${encodeURIComponent(atrativoId)}/imagens/${encodeURIComponent(imagemId)}/principal`,
+      {}
+    ),
 
   reordenarImagensAtrativo: (atrativoId: string, imagens: ReordenarImagensAtrativoRequestItem[]) =>
     http.put<void>(`/uploads/atrativos/${encodeURIComponent(atrativoId)}/imagens/reordenar`, { imagens }),
+
+  // Usuarios
+  listarUsuarios: () => http.get<any[]>("/usuarios").then((items) => (items ?? []).map(parseUsuario)),
+  obterUsuario: (id: string) => http.get<any>(`/usuarios/${id}`).then(parseUsuario),
+  criarUsuario: (body: CriarUsuarioRequest) => http.post<any>("/usuarios", body),
+  atualizarUsuario: (id: string, body: AtualizarUsuarioRequest) => http.put<any>(`/usuarios/${id}`, body),
+  excluirUsuario: (id: string) => http.del<void>(`/usuarios/${id}`),
 };

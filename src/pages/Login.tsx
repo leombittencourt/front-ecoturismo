@@ -1,4 +1,4 @@
-import { useState } from "react";
+﻿import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -31,13 +31,13 @@ export default function Login() {
     if (!ok) {
       toast({
         title: "Erro ao entrar",
-        description: "Credenciais inválidas. Verifique e-mail e senha.",
+        description: "Credenciais invÃ¡lidas. Verifique e-mail e senha.",
         variant: "destructive",
       });
       return;
     }
 
-    // user pode ainda não estar atualizado no mesmo tick; então buscamos do localStorage como fonte imediata
+    // user pode ainda nÃ£o estar atualizado no mesmo tick; entÃ£o buscamos do localStorage como fonte imediata
     const saved = localStorage.getItem("eco_auth");
     const role =
       (saved ? (() => { try { return JSON.parse(saved)?.user?.role; } catch { return undefined; } })() : undefined) ??
@@ -62,10 +62,10 @@ export default function Login() {
             <Waves className="h-16 w-16 text-accent" />
           </div>
           <h1 className="text-4xl font-heading font-bold text-white leading-tight">
-            Gestão Inteligente do Ecoturismo
+            GestÃ£o Inteligente do Ecoturismo
           </h1>
           <p className="text-lg text-white/80 max-w-md mx-auto">
-            Plataforma integrada para monitoramento, reservas e sustentabilidade dos atrativos naturais do seu município.
+            Plataforma integrada para monitoramento, reservas e sustentabilidade dos atrativos naturais do seu municÃ­pio.
           </p>
           <div className="flex justify-center gap-8 pt-8">
             <div className="text-center">
@@ -78,7 +78,7 @@ export default function Login() {
             </div>
             <div className="text-center">
               <p className="text-3xl font-heading font-bold text-white">72%</p>
-              <p className="text-sm text-white/70">Ocupação</p>
+              <p className="text-sm text-white/70">OcupaÃ§Ã£o</p>
             </div>
           </div>
         </div>
@@ -100,7 +100,7 @@ export default function Login() {
               </div>
             )}
             <CardTitle className="text-2xl font-heading">{configs.nome_sistema}</CardTitle>
-            <CardDescription>Acesse o painel de gestão do município</CardDescription>
+            <CardDescription>Acesse o painel de gestÃ£o do municÃ­pio</CardDescription>
           </CardHeader>
 
           <CardContent>
@@ -122,7 +122,7 @@ export default function Login() {
                 <Input
                   id="senha"
                   type="password"
-                  placeholder="••••••••"
+                  placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
                   value={senha}
                   onChange={(e) => setSenha(e.target.value)}
                   required
@@ -134,12 +134,6 @@ export default function Login() {
                 {loading ? "Entrando..." : "Entrar"}
               </Button>
 
-              <div className="text-center text-xs text-muted-foreground mt-4 space-y-1">
-                <p className="font-medium">Usuários demo:</p>
-                <p>admin@eco.gov.br (Admin)</p>
-                <p>prefeitura@eco.gov.br (Prefeitura)</p>
-                <p>balneario@eco.gov.br (Balneário)</p>
-              </div>
             </form>
           </CardContent>
         </Card>

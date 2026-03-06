@@ -64,20 +64,119 @@ interface Banner {
   titulo: string | null;
   subtitulo: string | null;
   imagem_url: string;
+  thumbnail_url: string;
   link: string | null;
   ordem: number;
   ativo: boolean;
 }
 
+function inferImageMimeFromBase64(raw: string): string {
+  const sample = raw.slice(0, 16);
+  if (sample.startsWith('/9j/')) return 'image/jpeg';
+  if (sample.startsWith('iVBOR')) return 'image/png';
+  if (sample.startsWith('R0lGOD')) return 'image/gif';
+  if (sample.startsWith('UklGR')) return 'image/webp';
+  return 'image/jpeg';
+}
+
+function normalizeImageValue(value: unknown): string {
+  const raw = String(value ?? '').trim().replace(/^"+|"+$/g, '');
+  if (!raw) return '';
+  if (raw.startsWith('http://') || raw.startsWith('https://') || raw.startsWith('data:') || raw.startsWith('blob:')) {
+    return raw;
+  }
+  if (raw.startsWith('www.')) return `https://${raw}`;
+
+  if (raw.startsWith('/')) return raw;
+  if (raw.startsWith('api/')) return `/${raw}`;
+  if (raw.startsWith('uploads/')) return `/${raw}`;
+  if (raw.startsWith('banners/')) return `/${raw}`;
+  if (raw.startsWith('images/')) return `/${raw}`;
+
+  const compact = raw.replace(/\s+/g, '');
+  const maybeBase64 =
+    compact.length > 80 &&
+    !compact.includes('/') &&
+    /^[A-Za-z0-9+/=]+$/.test(compact);
+  if (maybeBase64) {
+    const mime = inferImageMimeFromBase64(compact);
+    return `data:${mime};base64,${compact}`;
+  }
+
+  return raw;
+}
+
+function resolveBannerImageNode(dto: Partial<BannerDto> & Record<string, unknown>): Record<string, unknown> {
+  const node =
+    (dto.imagem as Record<string, unknown> | undefined) ??
+    (dto.Imagem as Record<string, unknown> | undefined) ??
+    {};
+  return node;
+}
+
+function resolveBannerImage(dto: Partial<BannerDto> & Record<string, unknown>, fallbackUploadUrl?: string): string {
+  const imageNode = resolveBannerImageNode(dto);
+  const nestedImage =
+    imageNode.imagemUrl ??
+    imageNode.ImagemUrl ??
+    imageNode.imageUrl ??
+    imageNode.ImageUrl ??
+    imageNode.url ??
+    imageNode.Url ??
+    '';
+  const direct =
+    dto.imagem_url ??
+    dto.imagemUrl ??
+    dto.ImagemUrl ??
+    dto.ImageUrl ??
+    dto.Imagem_url ??
+    dto.imageUrl ??
+    dto.image_url ??
+    dto.url ??
+    dto.Url ??
+    nestedImage ??
+    dto.imagem ??
+    dto.Imagem ??
+    dto.imagemBase64 ??
+    dto.ImagemBase64 ??
+    dto.base64 ??
+    dto.Base64 ??
+    fallbackUploadUrl ??
+    '';
+
+  return normalizeImageValue(direct);
+}
+
+function resolveBannerThumbnail(dto: Partial<BannerDto> & Record<string, unknown>): string {
+  const imageNode = resolveBannerImageNode(dto);
+  const direct =
+    dto.thumbnail_url ??
+    dto.thumbnailUrl ??
+    dto.ThumbnailUrl ??
+    dto.thumbnail ??
+    dto.Thumbnail ??
+    imageNode.thumbnailUrl ??
+    imageNode.ThumbnailUrl ??
+    imageNode.thumbnail_url ??
+    imageNode.Thumbnail_url ??
+    imageNode.thumbnail ??
+    imageNode.Thumbnail ??
+    '';
+
+  return normalizeImageValue(direct);
+}
+
 function mapBannerDto(dto: BannerDto): Banner {
+  const raw = dto as unknown as Record<string, unknown>;
   return {
-    id: dto.id,
-    titulo: dto.titulo ?? null,
-    subtitulo: dto.subtitulo ?? null,
-    imagem_url: (dto.imagem_url ?? dto.imagemUrl ?? '') as string,
-    link: dto.link ?? null,
-    ordem: dto.ordem ?? 0,
-    ativo: dto.ativo ?? true,
+    id: String(dto.id ?? raw.Id ?? ''),
+    titulo: (dto.titulo ?? (raw.Titulo as string | null) ?? null) as string | null,
+    subtitulo: (dto.subtitulo ?? (raw.Subtitulo as string | null) ?? null) as string | null,
+    imagem_url: resolveBannerImage(raw),
+    thumbnail_url: resolveBannerThumbnail(raw),
+    link: (dto.link ?? (raw.Link as string | null) ?? null) as string | null,
+    ordem: Number(dto.ordem ?? raw.Ordem ?? 0),
+    ativo: Boolean(dto.ativo ?? raw.Ativo ?? true),
   };
 }
 
@@ -99,26 +198,59 @@ function toDataUrl(base64: string, mimeType?: string | null): string {
 }
 
 function resolveLogoValue(uploaded: unknown): string | null {
+  if (typeof uploaded === 'string') {
+    const normalized = normalizeImageValue(uploaded);
+    return normalized || null;
+  }
+
   const obj = (uploaded ?? {}) as Record<string, unknown>;
   const nested = (obj.upload ?? {}) as Record<string, unknown>;
+  const imageNode =
+    (obj.imagem as Record<string, unknown> | undefined) ??
+    (obj.Imagem as Record<string, unknown> | undefined) ??
+    {};
 
-  const url = String(
-    nested.url ??
-    obj.url ??
-    obj.Url ??
-    ''
-  ).trim();
-  if (url) return url;
+  const urlCandidates = [
+    nested.url,
+    nested.Url,
+    nested.imagemUrl,
+    nested.ImagemUrl,
+    nested.imageUrl,
+    nested.ImageUrl,
+    obj.url,
+    obj.Url,
+    obj.logoUrl,
+    obj.LogoUrl,
+    obj.imagemUrl,
+    obj.ImagemUrl,
+    obj.imageUrl,
+    obj.ImageUrl,
+    imageNode.imagemUrl,
+    imageNode.ImagemUrl,
+    imageNode.imageUrl,
+    imageNode.ImageUrl,
+    imageNode.url,
+    imageNode.Url,
+    obj.logoTelaLogin,
+    obj.LogoTelaLogin,
+    obj.logoTelaPublica,
+    obj.LogoTelaPublica,
+  ];
+
+  for (const candidate of urlCandidates) {
+    const normalized = normalizeImageValue(candidate);
+    if (normalized) return normalized;
+  }
 
   const base64 = String(
-    obj.logoTelaLogin ??
-    obj.LogoTelaLogin ??
-    obj.logoTelaPublica ??
-    obj.LogoTelaPublica ??
     obj.base64 ??
     obj.Base64 ??
     obj.imagemBase64 ??
     obj.ImagemBase64 ??
+    imageNode.base64 ??
+    imageNode.Base64 ??
+    imageNode.imagemBase64 ??
+    imageNode.ImagemBase64 ??
     ''
   ).trim();
   if (!base64) return null;
@@ -240,6 +372,9 @@ export default function Parametros() {
 
   // Local state for editable fields
   const [nomeSistema, setNomeSistema] = useState('');
+  const [sobreEcoturismoTitulo, setSobreEcoturismoTitulo] = useState('');
+  const [sobreEcoturismoTexto1, setSobreEcoturismoTexto1] = useState('');
+  const [sobreEcoturismoTexto2, setSobreEcoturismoTexto2] = useState('');
   const [footerTexto, setFooterTexto] = useState('');
   const [footerLinks, setFooterLinks] = useState<{ label: string; url: string }[]>([]);
   const [bannerLargura, setBannerLargura] = useState('');
@@ -262,6 +397,9 @@ export default function Parametros() {
   useEffect(() => {
     if (!loading) {
       setNomeSistema(configs.nome_sistema);
+      setSobreEcoturismoTitulo(configs.sobre_ecoturismo_titulo);
+      setSobreEcoturismoTexto1(configs.sobre_ecoturismo_texto_1);
+      setSobreEcoturismoTexto2(configs.sobre_ecoturismo_texto_2);
       setFooterTexto(configs.footer_texto);
       setFooterLinks(configs.footer_links);
       setBannerLargura(configs.banner_largura);
@@ -341,6 +479,9 @@ export default function Parametros() {
   const saveGeneral = async () => {
     const errors = await updateConfigs([
       { chave: 'nome_sistema', valor: nomeSistema },
+      { chave: 'sobre_ecoturismo_titulo', valor: sobreEcoturismoTitulo },
+      { chave: 'sobre_ecoturismo_texto_1', valor: sobreEcoturismoTexto1 },
+      { chave: 'sobre_ecoturismo_texto_2', valor: sobreEcoturismoTexto2 },
       { chave: 'banner_largura', valor: bannerLargura },
       { chave: 'banner_altura', valor: bannerAltura },
     ]);
@@ -375,13 +516,32 @@ export default function Parametros() {
     }
     setUploading(true);
     try {
-      await apiClient.uploadBannerECreate(file, {
+      const created = await apiClient.uploadBannerECreate(file, {
         municipioId,
         titulo: newBanner.titulo || '',
       });
 
       toast({ title: 'Banner adicionado!' });
       setNewBanner({ titulo: '', subtitulo: '', link: '' });
+      const response = (created ?? {}) as Record<string, unknown>;
+      const rawBanner = ((response.banner ?? response.Banner ?? null) as Record<string, unknown> | null) ?? null;
+      const uploadNode = (response.upload ?? response.Upload ?? {}) as Record<string, unknown>;
+      const uploadUrl = String(uploadNode.url ?? uploadNode.Url ?? '').trim();
+
+      if (rawBanner) {
+        const normalized = mapBannerDto(rawBanner as unknown as BannerDto);
+        const patched: Banner = {
+          ...normalized,
+          imagem_url: normalized.imagem_url || normalizeImageValue(uploadUrl),
+          thumbnail_url: normalized.thumbnail_url || normalized.imagem_url || normalizeImageValue(uploadUrl),
+        };
+        if (patched.id && patched.imagem_url) {
+          setBanners((prev) => {
+            if (prev.some((item) => item.id === patched.id)) return prev;
+            return [...prev, patched].sort((a, b) => a.ordem - b.ordem);
+          });
+        }
+      }
       await fetchBanners();
     } catch (error: unknown) {
       toast({ title: 'Erro ao salvar banner', description: getErrorMessage(error, 'Nao foi possivel adicionar o banner.'), variant: 'destructive' });
@@ -702,7 +862,7 @@ export default function Parametros() {
                           <button onClick={() => moveOrder(b.id, -1)} disabled={idx === 0} className="text-muted-foreground hover:text-foreground disabled:opacity-30">▲</button>
                           <button onClick={() => moveOrder(b.id, 1)} disabled={idx === banners.length - 1} className="text-muted-foreground hover:text-foreground disabled:opacity-30">▼</button>
                         </div>
-                        <img src={b.imagem_url} alt={b.titulo || 'Banner'} className="w-20 h-12 object-cover rounded" />
+                        <img src={b.thumbnail_url || b.imagem_url} alt={b.titulo || 'Banner'} className="w-20 h-12 object-cover rounded" />
                         <div className="flex-1 min-w-0">
                           {editingId === b.id ? (
                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5">
@@ -851,6 +1011,28 @@ export default function Parametros() {
                 <Label>Nome do Sistema</Label>
                 <Input value={nomeSistema} onChange={e => setNomeSistema(e.target.value)} placeholder="EcoTurismo" />
                 <p className="text-xs text-muted-foreground">Exibido nos headers e sidebar</p>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Secao: Sobre o Ecoturismo no Municipio</Label>
+                <Input
+                  value={sobreEcoturismoTitulo}
+                  onChange={e => setSobreEcoturismoTitulo(e.target.value)}
+                  placeholder="Titulo da secao"
+                />
+                <Textarea
+                  value={sobreEcoturismoTexto1}
+                  onChange={e => setSobreEcoturismoTexto1(e.target.value)}
+                  rows={3}
+                  placeholder="Primeiro paragrafo"
+                />
+                <Textarea
+                  value={sobreEcoturismoTexto2}
+                  onChange={e => setSobreEcoturismoTexto2(e.target.value)}
+                  rows={3}
+                  placeholder="Segundo paragrafo"
+                />
+                <p className="text-xs text-muted-foreground">Conteudo exibido na home na secao institucional.</p>
               </div>
 
               <div className="grid grid-cols-2 gap-4">

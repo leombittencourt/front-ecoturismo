@@ -17,6 +17,7 @@ import {
   type CriarQuiosqueRequest,
   type AtualizarPosicaoQuiosqueRequest,
   type UploadImagensAtrativoRequest,
+  type UploadImagensAtrativoResponse,
   type ReordenarImagensAtrativoRequestItem,
   type CriarAtrativoRequest,
 } from "@/services/apiClient";
@@ -117,8 +118,8 @@ export async function atualizarAtrativo(id: string, body: Partial<Atrativo>): Pr
   return apiClient.atualizarAtrativo(id, body);
 }
 
-export async function uploadImagensAtrativo(id: string, payload: UploadImagensAtrativoRequest): Promise<void> {
-  await apiClient.uploadImagensAtrativo(id, payload);
+export async function uploadImagensAtrativo(id: string, payload: UploadImagensAtrativoRequest): Promise<UploadImagensAtrativoResponse> {
+  return apiClient.uploadImagensAtrativo(id, payload);
 }
 
 export async function removerImagemAtrativo(atrativoId: string, imagemId: string): Promise<void> {

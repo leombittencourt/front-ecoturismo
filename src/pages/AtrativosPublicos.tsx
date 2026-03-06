@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
+﻿import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import SEOHead from '@/components/SEOHead';
+import PublicPageHeader from '@/components/PublicPageHeader';
 import { apiClient } from '@/services/apiClient';
 import { MapPin, Waves, ArrowRight } from 'lucide-react';
 
@@ -263,16 +264,12 @@ export default function AtrativosPublicos() {
         title="Atrativos Turisticos - Rio Verde de Mato Grosso"
         description="Explore os atrativos turisticos e acesse os detalhes de cada destino para planejar sua visita."
       />
+      <PublicPageHeader
+        title="Atrativos turisticos"
+        subtitle="Escolha um destino para ver informacoes completas e reservar sua visita."
+      />
 
       <section className="max-w-6xl mx-auto px-4 py-12">
-        <div className="flex items-end justify-between gap-4 mb-6">
-          <div>
-            <h1 className="text-3xl sm:text-4xl font-heading font-extrabold text-foreground">Atrativos turisticos</h1>
-            <p className="text-sm sm:text-base text-foreground/70 mt-1">
-              Escolha um destino para ver informacoes completas e reservar sua visita.
-            </p>
-          </div>
-        </div>
 
         <div className="mb-6 rounded-xl border border-border bg-card p-4">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -407,7 +404,7 @@ export default function AtrativosPublicos() {
                         <MapPin className="h-3.5 w-3.5" />
                         {item.municipio}
                       </p>
-                      <p className="text-[11px] text-foreground/70">{item.experiencias.slice(0, 2).join(' � ')}</p>
+                      <p className="text-[11px] text-foreground/70">{item.experiencias.slice(0, 2).join(' • ')}</p>
                     </div>
                     <div className="flex items-center justify-end pt-1">
                       <span className="inline-flex items-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium text-foreground shadow-sm">
@@ -425,3 +422,4 @@ export default function AtrativosPublicos() {
     </div>
   );
 }
+

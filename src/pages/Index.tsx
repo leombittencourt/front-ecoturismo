@@ -38,6 +38,71 @@ interface HeroBanner {
   subtitulo: string | null;
 }
 
+function inferImageMimeFromBase64(raw: string): string {
+  const sample = raw.slice(0, 16);
+  if (sample.startsWith('/9j/')) return 'image/jpeg';
+  if (sample.startsWith('iVBOR')) return 'image/png';
+  if (sample.startsWith('R0lGOD')) return 'image/gif';
+  if (sample.startsWith('UklGR')) return 'image/webp';
+  return 'image/jpeg';
+}
+
+function normalizeImageValue(value: unknown): string {
+  const raw = String(value ?? '').trim().replace(/^"+|"+$/g, '');
+  if (!raw) return '';
+  if (raw.startsWith('http://') || raw.startsWith('https://') || raw.startsWith('data:') || raw.startsWith('blob:')) {
+    return raw;
+  }
+  if (raw.startsWith('www.')) return `https://${raw}`;
+  if (raw.startsWith('/')) return raw;
+  if (raw.startsWith('api/')) return `/${raw}`;
+  if (raw.startsWith('uploads/')) return `/${raw}`;
+  if (raw.startsWith('banners/')) return `/${raw}`;
+  if (raw.startsWith('images/')) return `/${raw}`;
+
+  const compact = raw.replace(/\s+/g, '');
+  const maybeBase64 = compact.length > 80 && !compact.includes('/') && /^[A-Za-z0-9+/=]+$/.test(compact);
+  if (maybeBase64) {
+    const mime = inferImageMimeFromBase64(compact);
+    return `data:${mime};base64,${compact}`;
+  }
+
+  return raw;
+}
+
+function resolveBannerImage(dto: Partial<BannerDto> & Record<string, unknown>): string {
+  const imageNode =
+    (dto.imagem as Record<string, unknown> | undefined) ??
+    (dto.Imagem as Record<string, unknown> | undefined) ??
+    {};
+
+  const direct =
+    dto.imagem_url ??
+    dto.imagemUrl ??
+    dto.ImagemUrl ??
+    dto.ImageUrl ??
+    dto.Imagem_url ??
+    dto.imageUrl ??
+    dto.image_url ??
+    dto.url ??
+    dto.Url ??
+    imageNode.imagemUrl ??
+    imageNode.ImagemUrl ??
+    imageNode.imageUrl ??
+    imageNode.ImageUrl ??
+    imageNode.url ??
+    imageNode.Url ??
+    dto.imagem ??
+    dto.Imagem ??
+    dto.imagemBase64 ??
+    dto.ImagemBase64 ??
+    dto.base64 ??
+    dto.Base64 ??
+    '';
+
+  return normalizeImageValue(direct);
+}
+
 function toNumber(value: unknown): number {
   const n = Number(value);
   return Number.isFinite(n) ? n : 0;
@@ -74,9 +139,47 @@ function getOcupacaoBadge(pct: number) {
 export default function Index() {
   const { configs } = useConfiguracoes();
   const [atrativos, setAtrativos] = useState<AtrativoCard[]>([]);
+  const [totalAtrativosMunicipio, setTotalAtrativosMunicipio] = useState(0);
+  const [totalModalidadesExperiencia, setTotalModalidadesExperiencia] = useState(0);
   const [heroBanners, setHeroBanners] = useState<HeroBanner[]>([]);
   const [heroIndex, setHeroIndex] = useState(0);
+  const [municipioLogoUrl, setMunicipioLogoUrl] = useState('');
   const municipioId = (import.meta.env.VITE_MUNICIPIO_ID as string | undefined)?.trim();
+  const aboutLogoUrl = normalizeImageValue(configs.logo_publica ?? '') || municipioLogoUrl;
+
+  useEffect(() => {
+    let active = true;
+
+    if (!municipioId) {
+      setMunicipioLogoUrl('');
+      return;
+    }
+
+    apiClient
+      .getMunicipio(municipioId)
+      .then((m) => {
+        if (!active) return;
+        const raw = m as unknown as Record<string, unknown>;
+        const logo = normalizeImageValue(
+          raw.logo ??
+          raw.Logo ??
+          raw.logoUrl ??
+          raw.LogoUrl ??
+          raw.imagemUrl ??
+          raw.ImagemUrl ??
+          ''
+        );
+        setMunicipioLogoUrl(logo || '');
+      })
+      .catch(() => {
+        if (!active) return;
+        setMunicipioLogoUrl('');
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [municipioId]);
 
   useEffect(() => {
     let active = true;
@@ -99,6 +202,17 @@ export default function Index() {
           }))
           .filter((a) => Boolean(a.id))
           .slice(0, 3);
+        const atrativosAtivos = (data ?? []).filter(
+          (a: any) => (a.status ?? a.Status ?? 'ativo').toString().toLowerCase() === 'ativo' && Boolean(a.id ?? a.Id)
+        );
+        const totalAtivos = atrativosAtivos.length;
+        const tiposUnicos = new Set(
+          atrativosAtivos
+            .map((a: any) => String(a.tipo ?? a.Tipo ?? '').trim().toLowerCase())
+            .filter(Boolean)
+        ).size;
+        setTotalAtrativosMunicipio(totalAtivos);
+        setTotalModalidadesExperiencia(tiposUnicos);
 
         const missingMunicipioIds = Array.from(
           new Set(
@@ -138,6 +252,8 @@ export default function Index() {
         );
       } catch {
         if (!active) return;
+        setTotalAtrativosMunicipio(0);
+        setTotalModalidadesExperiencia(0);
         setAtrativos([]);
       }
     };
@@ -159,7 +275,7 @@ export default function Index() {
         const mapped = (data ?? [])
           .map((b: BannerDto) => ({
             id: String(b.id ?? ''),
-            imagemUrl: String(b.imagem_url ?? b.imagemUrl ?? ''),
+            imagemUrl: resolveBannerImage(b as unknown as Record<string, unknown>),
             titulo: b.titulo ?? null,
             subtitulo: b.subtitulo ?? null,
             ordem: Number(b.ordem ?? 0),
@@ -202,6 +318,13 @@ export default function Index() {
   const heroSubtitulo =
     currentBanner?.subtitulo?.trim() ||
     'Viva experiencias unicas em meio a natureza e cultura local.';
+  const sobreTitulo = configs.sobre_ecoturismo_titulo?.trim() || 'Sobre o Ecoturismo no Município';
+  const sobreTexto1 =
+    configs.sobre_ecoturismo_texto_1?.trim() ||
+    'Rio Verde de Mato Grosso fortalece o turismo de natureza com experiências seguras, acolhimento local e valorização do patrimônio ambiental. O município promove visitas responsáveis, conectando lazer, cultura regional e conservação dos recursos naturais.';
+  const sobreTexto2 =
+    configs.sobre_ecoturismo_texto_2?.trim() ||
+    'A sustentabilidade é um eixo central da gestão turística, com foco em uso consciente dos atrativos, preservação de fauna e flora e incentivo ao desenvolvimento econômico local de forma equilibrada.';
 
   return (
     <div className="min-h-screen bg-background">
@@ -324,21 +447,25 @@ export default function Index() {
           <div className="grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-6 lg:gap-8 items-center">
             <div className="max-w-2xl">
               <h2 className="text-2xl sm:text-3xl font-heading font-bold text-foreground">
-                Sobre o Ecoturismo no Município
+                {sobreTitulo}
               </h2>
               <p className="mt-3 text-sm sm:text-base text-foreground/75">
-                Rio Verde de Mato Grosso fortalece o turismo de natureza com experiências seguras, acolhimento local e
-                valorização do patrimônio ambiental. O município promove visitas responsáveis, conectando lazer, cultura
-                regional e conservação dos recursos naturais.
+                {sobreTexto1}
               </p>
               <p className="mt-3 text-sm sm:text-base text-foreground/75">
-                A sustentabilidade é um eixo central da gestão turística, com foco em uso consciente dos atrativos,
-                preservação de fauna e flora e incentivo ao desenvolvimento econômico local de forma equilibrada.
+                {sobreTexto2}
               </p>
             </div>
             <div className="rounded-xl border border-primary/15 bg-background/90 p-6 sm:p-7 flex flex-col items-center justify-center text-center">
-              <div className="h-16 w-16 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center">
-                <Building2 className="h-8 w-8 text-primary" />
+              <div
+                className="h-24 w-36 rounded-lg border border-white/20 flex items-center justify-center overflow-hidden p-2"
+                style={{ backgroundColor: '#0176C1' }}
+              >
+                {aboutLogoUrl ? (
+                  <img src={aboutLogoUrl} alt="Logo do município" className="h-full w-full object-contain" loading="lazy" />
+                ) : (
+                  <Building2 className="h-10 w-10 text-white" />
+                )}
               </div>
               <p className="mt-4 text-sm font-semibold text-foreground">Portal institucional de ecoturismo</p>
               <p className="mt-1 text-xs text-foreground/65">Gestão pública, sustentabilidade e visitação responsável.</p>
@@ -347,8 +474,8 @@ export default function Index() {
 
           <div className="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-3">
             {[
-              { label: 'Pontos turísticos em destaque', value: '6' },
-              { label: 'Modalidades de experiência', value: '8+' },
+              { label: 'Pontos turísticos em destaque', value: String(totalAtrativosMunicipio) },
+              { label: 'Modalidades de experiência', value: `${totalModalidadesExperiencia}+` },
               { label: 'Foco estratégico', value: 'Sustentabilidade' },
             ].map((item) => (
               <div key={item.label} className="rounded-xl border border-border bg-background px-4 py-4">

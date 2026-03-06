@@ -5,6 +5,9 @@ export interface Configuracoes {
   logo_login: string | null;
   logo_publica: string | null;
   nome_sistema: string;
+  sobre_ecoturismo_titulo: string;
+  sobre_ecoturismo_texto_1: string;
+  sobre_ecoturismo_texto_2: string;
   footer_texto: string;
   footer_links: { label: string; url: string }[];
   banner_largura: string;
@@ -21,6 +24,11 @@ const DEFAULTS: Configuracoes = {
   logo_login: null,
   logo_publica: null,
   nome_sistema: "EcoTurismo",
+  sobre_ecoturismo_titulo: "Sobre o Ecoturismo no Municipio",
+  sobre_ecoturismo_texto_1:
+    "Rio Verde de Mato Grosso fortalece o turismo de natureza com experiencias seguras, acolhimento local e valorizacao do patrimonio ambiental. O municipio promove visitas responsaveis, conectando lazer, cultura regional e conservacao dos recursos naturais.",
+  sobre_ecoturismo_texto_2:
+    "A sustentabilidade e um eixo central da gestao turistica, com foco em uso consciente dos atrativos, preservacao de fauna e flora e incentivo ao desenvolvimento economico local de forma equilibrada.",
   footer_texto: "Plataforma de Gestão Inteligente do Ecoturismo Municipal",
   footer_links: [],
   banner_largura: "1200",
@@ -32,6 +40,8 @@ const DEFAULTS: Configuracoes = {
   cor_sucesso: "120 40% 44%",
   cor_warning: "45 100% 51%",
 };
+
+const CONFIGS_UPDATED_EVENT = "ecoturismo:configs-updated";
 
 export function useConfiguracoes() {
   const [configs, setConfigs] = useState<Configuracoes>(DEFAULTS);
@@ -52,6 +62,12 @@ export function useConfiguracoes() {
         logo_login: map.logo_login || null,
         logo_publica: map.logo_publica || null,
         nome_sistema: map.nome_sistema || DEFAULTS.nome_sistema,
+        sobre_ecoturismo_titulo:
+          map.sobre_ecoturismo_titulo || DEFAULTS.sobre_ecoturismo_titulo,
+        sobre_ecoturismo_texto_1:
+          map.sobre_ecoturismo_texto_1 || DEFAULTS.sobre_ecoturismo_texto_1,
+        sobre_ecoturismo_texto_2:
+          map.sobre_ecoturismo_texto_2 || DEFAULTS.sobre_ecoturismo_texto_2,
         footer_texto: map.footer_texto || DEFAULTS.footer_texto,
         footer_links: parseLinks(map.footer_links),
         banner_largura: map.banner_largura || DEFAULTS.banner_largura,
@@ -73,10 +89,20 @@ export function useConfiguracoes() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    const onConfigsUpdated = () => {
+      fetchConfigs();
+    };
+    window.addEventListener(CONFIGS_UPDATED_EVENT, onConfigsUpdated);
+    return () => window.removeEventListener(CONFIGS_UPDATED_EVENT, onConfigsUpdated);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const updateConfig = async (chave: string, valor: string | null) => {
     try {
       await apiClient.putConfiguracoes([{ chave, valor }]); // <- REUSO
       await fetchConfigs();
+      window.dispatchEvent(new Event(CONFIGS_UPDATED_EVENT));
       return null;
     } catch (error) {
       return error;
@@ -87,6 +113,7 @@ export function useConfiguracoes() {
     const errors: any[] = [];
     try {
       await apiClient.putConfiguracoes(updates); // <- REUSO
+      window.dispatchEvent(new Event(CONFIGS_UPDATED_EVENT));
     } catch (error) {
       errors.push(error);
     }

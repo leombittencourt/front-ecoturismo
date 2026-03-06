@@ -16,8 +16,8 @@ import { useToast } from '@/hooks/use-toast';
 import { ptBR } from 'date-fns/locale';
 import { differenceInDays, format } from 'date-fns';
 import { Moon } from 'lucide-react';
-import { useConfiguracoes } from '@/hooks/useConfiguracoes';
 import SEOHead from '@/components/SEOHead';
+import PublicPageHeader from '@/components/PublicPageHeader';
 import { apiClient } from '@/services/apiClient';
 import { normalizeQuiosqueStatus } from '@/components/quiosques/types';
 
@@ -108,7 +108,6 @@ export default function Reservar() {
   const [quiosques, setQuiosques] = useState<QuiosqueOption[]>([]);
   const [selectedQuiosque, setSelectedQuiosque] = useState<string | null>(null);
   const { toast } = useToast();
-  const { configs } = useConfiguracoes();
   const municipioId = import.meta.env.VITE_MUNICIPIO_ID as string | undefined;
   const atrativoFromQuery = searchParams.get('atrativo');
 
@@ -368,16 +367,10 @@ export default function Reservar() {
   if (confirmacao) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-primary/5 to-background">
-        <nav className="px-4 py-4 flex items-center justify-between border-b border-border bg-card max-w-6xl mx-auto">
-          <Link to="/" className="flex items-center gap-2">
-            {configs.logo_publica ? (
-              <img src={configs.logo_publica} alt={configs.nome_sistema} className="h-6 object-contain" />
-            ) : (
-              <Trees className="h-6 w-6 text-primary" />
-            )}
-            <span className="font-heading font-bold text-foreground">{configs.nome_sistema}</span>
-          </Link>
-        </nav>
+        <PublicPageHeader
+          title="Reserva confirmada"
+          subtitle="Seu ticket foi gerado com sucesso."
+        />
         <div className="max-w-lg mx-auto mt-8 px-4 animate-fade-in">
           <Card className="text-center">
             <CardContent className="p-8 space-y-6">
@@ -437,41 +430,12 @@ export default function Reservar() {
         title="Reservar Visita - EcoTurismo"
         description="Reserve sua visita a balneários, cachoeiras e trilhas. Sem cadastro, com QR Code para validação na entrada."
       />
-      <nav className="px-4 py-4 flex items-center justify-between border-b border-border bg-card">
-        <Link to="/" className="flex items-center gap-2">
-          {configs.logo_publica ? (
-            <img src={configs.logo_publica} alt={configs.nome_sistema} className="h-6 object-contain" />
-          ) : (
-            <Trees className="h-6 w-6 text-primary" />
-          )}
-          <span className="font-heading font-bold text-foreground">{configs.nome_sistema}</span>
-        </Link>
-        <Link to="/login">
-          <Button variant="ghost" size="sm" className="text-muted-foreground">Área Gestão</Button>
-        </Link>
-      </nav>
-
-      <header className="bg-gradient-to-r from-primary via-primary/90 to-secondary text-primary-foreground border-b border-primary/40 shadow-[0_6px_18px_rgba(0,0,0,0.12)]">
-        <div className="max-w-6xl mx-auto px-4 py-3 sm:py-4 text-center">
-          <p className="text-xs sm:text-sm font-medium tracking-[0.08em] text-white/90">
-            Prefeitura de Rio Verde de Mato Grosso/MS
-          </p>
-          <p className="text-base sm:text-lg font-heading font-bold tracking-tight drop-shadow-[0_1px_1px_rgba(0,0,0,0.25)]">
-            Sistema Oficial de Reservas Ambientais
-          </p>
-        </div>
-      </header>
+      <PublicPageHeader
+        title={tituloTopo}
+        subtitle="Controle a data, numero de visitantes e garanta uma experiencia segura e sustentavel."
+      />
 
       <div className="max-w-3xl mx-auto px-4 py-6 space-y-6 animate-fade-in">
-
-        <div className="rounded-2xl border border-border bg-card p-5 sm:p-6 text-center">
-          <h1 className="text-2xl sm:text-3xl font-heading font-bold text-foreground">
-            {tituloTopo}
-          </h1>
-          <p className="text-muted-foreground mt-2 max-w-2xl mx-auto">
-            Controle a data, número de visitantes e garanta uma experiência segura e sustentável.
-          </p>
-        </div>
 
         {atrativo && (
           <Card>
@@ -874,5 +838,6 @@ export default function Reservar() {
     </div>
   );
 }
+
 
 

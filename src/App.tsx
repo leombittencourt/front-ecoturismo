@@ -24,6 +24,7 @@ import Balneario from "@/pages/Balneario";
 import Admin from "@/pages/Admin";
 import Quiosques from "@/pages/Quiosques";
 import Parametros from "@/pages/Parametros";
+import Usuarios from "@/pages/Usuarios";
 import Install from "@/pages/Install";
 import NotFound from "./pages/NotFound";
 
@@ -69,9 +70,10 @@ const App = () => (
                 <Route path="/gestao/atrativos/:id" element={<AtrativoDetalhe />} />
                 <Route path="/analytics" element={<Analytics />} />
                 <Route path="/relatorios" element={<Relatorios />} />
-                <Route path="/quiosques" element={<Quiosques />} />
+                <Route path="/quiosques" element={<ProtectedRoute roles={['admin', 'balneario']}><Quiosques /></ProtectedRoute>} />
                 <Route path="/balneario" element={<ProtectedRoute roles={['balneario', 'admin']}><Balneario /></ProtectedRoute>} />
                 <Route path="/admin" element={<ProtectedRoute roles={['admin']}><Admin /></ProtectedRoute>} />
+                <Route path="/usuarios" element={<ProtectedRoute roles={['admin']}><Usuarios /></ProtectedRoute>} />
                 <Route path="/parametros" element={<ProtectedRoute roles={['admin', 'prefeitura']}><Parametros /></ProtectedRoute>} />
               </Route>
               <Route path="*" element={<NotFound />} />

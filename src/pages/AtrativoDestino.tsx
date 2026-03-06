@@ -54,8 +54,38 @@ function buildGoogleMapsExternalUrl(params: {
     return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
   }
 
-  if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
+  if (hasValidCoordinates(latitude, longitude)) {
     return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${latitude},${longitude}`)}`;
+  }
+
+  return '';
+}
+
+function hasValidCoordinates(latitude?: number, longitude?: number): boolean {
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return false;
+  if (Math.abs(Number(latitude)) > 90 || Math.abs(Number(longitude)) > 180) return false;
+  if (Math.abs(Number(latitude)) < 0.000001 && Math.abs(Number(longitude)) < 0.000001) return false;
+  return true;
+}
+
+function buildGoogleMapsEmbedUrl(params: {
+  nome?: string;
+  endereco?: string;
+  latitude?: number;
+  longitude?: number;
+}) {
+  const nome = String(params.nome ?? '').trim();
+  const endereco = String(params.endereco ?? '').trim();
+  const latitude = params.latitude;
+  const longitude = params.longitude;
+
+  if (hasValidCoordinates(latitude, longitude)) {
+    return `https://maps.google.com/maps?q=${encodeURIComponent(`${latitude},${longitude}`)}&output=embed`;
+  }
+
+  const query = [nome, endereco].filter(Boolean).join(', ').trim();
+  if (query) {
+    return `https://maps.google.com/maps?q=${encodeURIComponent(query)}&output=embed`;
   }
 
   return '';
@@ -187,6 +217,7 @@ export default function AtrativoDestino() {
 
           const imagemPrincipal = imagensDetalhe[0]
             || String(detalheAtrativo?.imagem ?? found.imagemUrl ?? found.imagem_url ?? found.imagem ?? fallbackBySlug.imagemUrl);
+          const descricaoDetalhada = detalheAtrativo?.descricaoDetalhada;
 
           setDestino({
             id: atrativoId || String(detalheAtrativo?.id ?? ''),
@@ -201,10 +232,10 @@ export default function AtrativoDestino() {
             latitude: detalheAtrativo?.latitude,
             longitude: detalheAtrativo?.longitude,
             descricao: {
-              oQueE: String(detalheAtrativo?.descricao ?? found.descricao ?? found.Descricao ?? fallbackBySlug.descricao.oQueE),
-              experiencia: fallbackBySlug.descricao.experiencia,
-              historia: fallbackBySlug.descricao.historia,
-              sustentabilidade: fallbackBySlug.descricao.sustentabilidade,
+              oQueE: String(descricaoDetalhada?.oQueE ?? detalheAtrativo?.descricao ?? found.descricao ?? found.Descricao ?? fallbackBySlug.descricao.oQueE),
+              experiencia: String(descricaoDetalhada?.experiencia ?? fallbackBySlug.descricao.experiencia),
+              historia: String(descricaoDetalhada?.historia ?? fallbackBySlug.descricao.historia),
+              sustentabilidade: String(descricaoDetalhada?.sustentabilidade ?? fallbackBySlug.descricao.sustentabilidade),
             },
             tecnico: {
               ...fallbackBySlug.tecnico,
@@ -257,6 +288,16 @@ export default function AtrativoDestino() {
   const googleMapsUrl = useMemo(
     () =>
       buildGoogleMapsExternalUrl({
+        nome: destino?.nome,
+        endereco: destino?.endereco,
+        latitude: destino?.latitude,
+        longitude: destino?.longitude,
+      }),
+    [destino?.nome, destino?.endereco, destino?.latitude, destino?.longitude]
+  );
+  const googleMapsEmbedUrl = useMemo(
+    () =>
+      buildGoogleMapsEmbedUrl({
         nome: destino?.nome,
         endereco: destino?.endereco,
         latitude: destino?.latitude,
@@ -376,15 +417,15 @@ export default function AtrativoDestino() {
               ))}
             </div>
           </div>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4 items-start">
             <Card>
-              <CardContent className="p-4 h-full min-h-[18rem] flex flex-col">
+              <CardContent className="p-4 h-full flex flex-col gap-3">
                 <div className="mb-3 flex items-center gap-2 text-foreground/70">
                   <PlayCircle className="h-4 w-4 text-primary/80" />
                   <p className="text-xs font-medium tracking-wide uppercase">Vídeo</p>
                 </div>
                 {destino.videoUrl ? (
-                  <div className="aspect-video overflow-hidden rounded-lg mt-auto">
+                  <div className="aspect-video overflow-hidden rounded-lg">
                     <iframe
                       src={destino.videoUrl}
                       title={`Video ${destino.nome}`}
@@ -395,7 +436,7 @@ export default function AtrativoDestino() {
                     />
                   </div>
                 ) : (
-                  <div className="mt-auto rounded-lg border border-dashed border-border p-4">
+                  <div className="rounded-lg border border-dashed border-border p-4">
                     <p className="text-sm text-muted-foreground">Vídeo não informado para este atrativo.</p>
                   </div>
                 )}
@@ -408,6 +449,17 @@ export default function AtrativoDestino() {
                   <p className="text-xs font-medium tracking-wide uppercase">Mapa</p>
                 </div>
                 <div className="mt-auto rounded-lg border border-border p-4 space-y-3">
+                  {googleMapsEmbedUrl && (
+                    <div className="aspect-video overflow-hidden rounded-lg border border-border">
+                      <iframe
+                        src={googleMapsEmbedUrl}
+                        title={`Mapa ${destino.nome}`}
+                        className="h-full w-full"
+                        loading="lazy"
+                        referrerPolicy="no-referrer-when-downgrade"
+                      />
+                    </div>
+                  )}
                   <div>
                     <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Nome</p>
                     <p className="text-sm text-foreground">{destino.nome}</p>

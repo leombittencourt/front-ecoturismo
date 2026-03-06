@@ -10,6 +10,7 @@ import {
   LayoutGrid,
   Moon,
   Sun,
+  Users,
 } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { NavLink } from '@/components/NavLink';
@@ -31,7 +32,6 @@ import { Button } from '@/components/ui/button';
 const prefeituraItems = [
   { title: 'Dashboard', url: '/dashboard', icon: LayoutDashboard },
   { title: 'Atrativos', url: '/gestao/atrativos', icon: MapPin },
-  { title: 'Quiosques', url: '/quiosques', icon: LayoutGrid },
   { title: 'Analytics', url: '/analytics', icon: BarChart3 },
   { title: 'Relatorios', url: '/relatorios', icon: FileText },
   { title: 'Parametros', url: '/parametros', icon: Settings },
@@ -43,10 +43,15 @@ const balnearioItems = [
   { title: 'Quiosques', url: '/quiosques', icon: LayoutGrid },
 ];
 
+const adminOperacaoItems = [
+  { title: 'Painel de Validacao', url: '/balneario', icon: Droplets },
+];
+
 const adminItems = [
   { title: 'Dashboard', url: '/dashboard', icon: LayoutDashboard },
   { title: 'Atrativos', url: '/gestao/atrativos', icon: MapPin },
   { title: 'Quiosques', url: '/quiosques', icon: LayoutGrid },
+  { title: 'Usuarios', url: '/usuarios', icon: Users },
   { title: 'Analytics', url: '/analytics', icon: BarChart3 },
   { title: 'Relatorios', url: '/relatorios', icon: FileText },
   { title: 'Administracao', url: '/admin', icon: Settings },
@@ -121,7 +126,7 @@ export function AppSidebar() {
             <SidebarGroupLabel className="text-sidebar-foreground/50">Operacao</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
-                {balnearioItems.map(item => (
+                {adminOperacaoItems.map(item => (
                   <SidebarMenuItem key={item.url}>
                     <SidebarMenuButton asChild>
                       <NavLink
