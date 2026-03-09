@@ -110,6 +110,7 @@ export default function Reservar() {
   const { toast } = useToast();
   const municipioId = import.meta.env.VITE_MUNICIPIO_ID as string | undefined;
   const atrativoFromQuery = searchParams.get('atrativo');
+  const atrativoFromQueryNormalized = (atrativoFromQuery ?? '').trim().toLowerCase();
 
   useEffect(() => {
     let ativo = true;
@@ -145,8 +146,15 @@ export default function Reservar() {
           }));
 
         setAtrativos(mapped);
-        if (atrativoFromQuery && mapped.some((a) => a.id === atrativoFromQuery)) {
-          setSelectedAtrativo(atrativoFromQuery);
+
+        if (atrativoFromQueryNormalized) {
+          const atrativoInicial = mapped.find(
+            (a) => String(a.id).trim().toLowerCase() === atrativoFromQueryNormalized
+          );
+
+          if (atrativoInicial) {
+            setSelectedAtrativo(atrativoInicial.id);
+          }
         }
       } catch (error: any) {
         if (!ativo) return;
@@ -163,7 +171,7 @@ export default function Reservar() {
     return () => {
       ativo = false;
     };
-  }, [municipioId, toast, atrativoFromQuery]);
+  }, [municipioId, toast, atrativoFromQueryNormalized]);
 
   // Fetch quiosques for selected atrativo
   useEffect(() => {
