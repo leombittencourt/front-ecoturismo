@@ -20,15 +20,13 @@ export function DraggableQuiosque({ q, editMode, onOpen }: Props) {
   const badgeClass =
     q.status === 'disponivel'
       ? 'text-[10px] mt-1 bg-emerald-600 text-white border border-emerald-700'
-      : q.status === 'reservado'
-        ? 'text-[10px] mt-1 bg-amber-500 text-white border border-amber-600'
-        : q.status === 'ocupado'
-          ? 'text-[10px] mt-1 bg-red-600 text-white border border-red-700'
-          : q.status === 'bloqueado'
-            ? 'text-[10px] mt-1 bg-orange-600 text-white border border-orange-700'
-            : q.status === 'inativo'
-              ? 'text-[10px] mt-1 bg-slate-700 text-white border border-slate-800'
-              : 'text-[10px] mt-1 bg-slate-600 text-white border border-slate-700';
+      : q.status === 'ocupado'
+        ? 'text-[10px] mt-1 bg-red-600 text-white border border-red-700'
+        : q.status === 'bloqueado'
+          ? 'text-[10px] mt-1 bg-orange-600 text-white border border-orange-700'
+          : q.status === 'inativo'
+            ? 'text-[10px] mt-1 bg-slate-700 text-white border border-slate-800'
+            : 'text-[10px] mt-1 bg-slate-600 text-white border border-slate-700';
 
   return (
     <Tooltip>

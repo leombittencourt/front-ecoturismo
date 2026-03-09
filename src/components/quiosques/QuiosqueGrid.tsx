@@ -82,15 +82,13 @@ export function QuiosqueGrid({ quiosques, editMode, onOpenDialog, onDragEnd }: P
                   className={
                     activeQuiosque.status === 'disponivel'
                       ? 'text-[10px] mt-1 bg-emerald-600 text-white border border-emerald-700'
-                      : activeQuiosque.status === 'reservado'
-                        ? 'text-[10px] mt-1 bg-amber-500 text-white border border-amber-600'
-                        : activeQuiosque.status === 'ocupado'
-                          ? 'text-[10px] mt-1 bg-red-600 text-white border border-red-700'
-                          : activeQuiosque.status === 'bloqueado'
-                            ? 'text-[10px] mt-1 bg-orange-600 text-white border border-orange-700'
-                            : activeQuiosque.status === 'inativo'
-                              ? 'text-[10px] mt-1 bg-slate-700 text-white border border-slate-800'
-                              : 'text-[10px] mt-1 bg-slate-600 text-white border border-slate-700'
+                      : activeQuiosque.status === 'ocupado'
+                        ? 'text-[10px] mt-1 bg-red-600 text-white border border-red-700'
+                        : activeQuiosque.status === 'bloqueado'
+                          ? 'text-[10px] mt-1 bg-orange-600 text-white border border-orange-700'
+                          : activeQuiosque.status === 'inativo'
+                            ? 'text-[10px] mt-1 bg-slate-700 text-white border border-slate-800'
+                            : 'text-[10px] mt-1 bg-slate-600 text-white border border-slate-700'
                   }
                 >
                   {STATUS_CONFIG[activeQuiosque.status].label}

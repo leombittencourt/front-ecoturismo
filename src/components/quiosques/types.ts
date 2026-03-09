@@ -1,6 +1,6 @@
-import { Ban, CheckCircle, Clock, PauseCircle, XCircle, Wrench } from 'lucide-react';
+import { Ban, CheckCircle, PauseCircle, XCircle, Wrench } from 'lucide-react';
 
-export type QuiosqueStatus = 'disponivel' | 'reservado' | 'ocupado' | 'manutencao' | 'bloqueado' | 'inativo';
+export type QuiosqueStatus = 'disponivel' | 'ocupado' | 'manutencao' | 'bloqueado' | 'inativo';
 
 export interface Quiosque {
   id: string;
@@ -27,7 +27,8 @@ export function normalizeQuiosqueStatus(value: unknown): QuiosqueStatus {
   if (raw === 'manutencao' || raw === 'em_manutencao') return 'manutencao';
   if (raw === 'bloqueado') return 'bloqueado';
   if (raw === 'inativo') return 'inativo';
-  if (raw === 'reservado') return 'reservado';
+  // Compatibilidade com dados legados: "reservado" equivale a ocupado.
+  if (raw === 'reservado') return 'ocupado';
   return 'disponivel';
 }
 
@@ -37,12 +38,6 @@ export const STATUS_CONFIG: Record<QuiosqueStatus, { label: string; color: strin
     color: 'text-white',
     bgClass: 'bg-emerald-100 dark:bg-emerald-900/40 border-emerald-300 dark:border-emerald-700 hover:bg-emerald-200 dark:hover:bg-emerald-900/60',
     icon: CheckCircle,
-  },
-  reservado: {
-    label: 'Reservado',
-    color: 'text-amber-700 dark:text-amber-400',
-    bgClass: 'bg-amber-100 dark:bg-amber-900/40 border-amber-300 dark:border-amber-700 hover:bg-amber-200 dark:hover:bg-amber-900/60',
-    icon: Clock,
   },
   ocupado: {
     label: 'Ocupado',

@@ -23,6 +23,7 @@ import Relatorios from "@/pages/Relatorios";
 import Balneario from "@/pages/Balneario";
 import Admin from "@/pages/Admin";
 import Quiosques from "@/pages/Quiosques";
+import ReservasGestao from "@/pages/ReservasGestao";
 import Parametros from "@/pages/Parametros";
 import Usuarios from "@/pages/Usuarios";
 import Install from "@/pages/Install";
@@ -71,6 +72,7 @@ const App = () => (
                 <Route path="/analytics" element={<Analytics />} />
                 <Route path="/relatorios" element={<Relatorios />} />
                 <Route path="/quiosques" element={<ProtectedRoute roles={['admin', 'balneario']}><Quiosques /></ProtectedRoute>} />
+                <Route path="/reservas/gestao" element={<ProtectedRoute roles={['admin', 'balneario']}><ReservasGestao /></ProtectedRoute>} />
                 <Route path="/balneario" element={<ProtectedRoute roles={['balneario', 'admin']}><Balneario /></ProtectedRoute>} />
                 <Route path="/admin" element={<ProtectedRoute roles={['admin']}><Admin /></ProtectedRoute>} />
                 <Route path="/usuarios" element={<ProtectedRoute roles={['admin']}><Usuarios /></ProtectedRoute>} />

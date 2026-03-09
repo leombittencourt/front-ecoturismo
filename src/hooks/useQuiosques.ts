@@ -10,6 +10,8 @@ import {
   atualizarQuiosque,
   atualizarPosicaoQuiosque,
   excluirQuiosque,
+  inativarQuiosque,
+  desvincularReservasQuiosque,
 } from '@/services/api';
 import { apiClient, type QuiosqueDto, type ReservaDto } from '@/services/apiClient';
 
@@ -95,6 +97,17 @@ function intersectsPeriod(
   return reservaInicio <= periodoFim && fimReserva >= periodoInicio;
 }
 
+function isReservaAtivaOuFutura(status: unknown, data: string | null, dataFim: string | null): boolean {
+  const statusNorm = String(status ?? '').trim().toLowerCase();
+  const ativa = statusNorm === 'confirmada' || statusNorm === 'em_andamento' || statusNorm === 'validada';
+  if (!ativa) return false;
+
+  const hoje = new Date().toISOString().split('T')[0];
+  const fim = dataFim ?? data;
+  if (!fim) return false;
+  return fim >= hoje;
+}
+
 export function useQuiosques() {
   const { user } = useAuth();
   const [quiosques, setQuiosques] = useState<Quiosque[]>([]);
@@ -108,6 +121,8 @@ export function useQuiosques() {
   const [dataConsultaFim, setDataConsultaFim] = useState<string>('');
   const [reservaVinculada, setReservaVinculada] = useState<ReservaVinculada[]>([]);
   const [loadingReservaVinculada, setLoadingReservaVinculada] = useState(false);
+  const [canDeleteSelectedQuiosque, setCanDeleteSelectedQuiosque] = useState(true);
+  const [deleteBlockReason, setDeleteBlockReason] = useState<string | null>(null);
   const { toast } = useToast();
 
   const loadAtrativos = async () => {
@@ -209,18 +224,41 @@ export function useQuiosques() {
         }));
 
       setReservaVinculada(vinculadas);
+
+      const vinculadasAtivasOuFuturas = (reservas ?? []).filter((r: ReservaDto & any) => {
+        if ((r.quiosqueId ?? r.quiosque_id ?? null) !== q.id) return false;
+        const inicio = toIsoDate(r.data);
+        const fim = toIsoDate(r.dataFim ?? r.data_fim ?? null) ?? inicio;
+        return isReservaAtivaOuFutura(r.status, inicio, fim);
+      });
+
+      if (vinculadasAtivasOuFuturas.length > 0) {
+        setCanDeleteSelectedQuiosque(false);
+        setDeleteBlockReason('Este quiosque possui reservas ativas/futuras vinculadas. Inative o quiosque em vez de excluir.');
+      } else {
+        setCanDeleteSelectedQuiosque(true);
+        setDeleteBlockReason(null);
+      }
     } catch {
       setReservaVinculada([]);
+      setCanDeleteSelectedQuiosque(true);
+      setDeleteBlockReason(null);
     } finally {
       setLoadingReservaVinculada(false);
     }
   };
 
   useEffect(() => {
-    if (!selectedQuiosque) return;
+    if (!selectedQuiosque) {
+      setCanDeleteSelectedQuiosque(true);
+      setDeleteBlockReason(null);
+      return;
+    }
     loadReservaVinculada(selectedQuiosque).catch(() => {
       setReservaVinculada([]);
       setLoadingReservaVinculada(false);
+      setCanDeleteSelectedQuiosque(true);
+      setDeleteBlockReason(null);
     });
   }, [selectedQuiosque, selectedAtrativoId, dataConsulta, dataConsultaFim]);
 
@@ -297,6 +335,38 @@ export function useQuiosques() {
     }
   };
 
+  const handleInativarQuiosque = async (id: string) => {
+    setSaving(true);
+    try {
+      await inativarQuiosque(id);
+      toast({ title: 'Quiosque inativado', description: 'O quiosque foi marcado como inativo.' });
+      setSelectedQuiosque(null);
+      await loadQuiosques();
+    } catch {
+      toast({ title: 'Erro', description: 'NÃ£o foi possÃ­vel inativar o quiosque.', variant: 'destructive' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDesvincularReservasQuiosque = async (id: string, motivo: string) => {
+    setSaving(true);
+    try {
+      const result = await desvincularReservasQuiosque(id, motivo);
+      const afetadas = Number(result?.reservasAfetadas ?? 0);
+      toast({
+        title: 'Reservas desvinculadas',
+        description: `Operacao concluida. Reservas afetadas: ${afetadas}.`,
+      });
+      setSelectedQuiosque(null);
+      await loadQuiosques();
+    } catch {
+      toast({ title: 'Erro', description: 'Nao foi possivel desvincular as reservas do quiosque.', variant: 'destructive' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleCreateQuiosque = async (data: { numero: number; tem_churrasqueira: boolean }) => {
     if (!selectedAtrativoId) return;
     setSaving(true);
@@ -348,11 +418,15 @@ export function useQuiosques() {
     handleDragEnd,
     handleCreateQuiosque,
     handleDeleteQuiosque,
+    handleInativarQuiosque,
+    handleDesvincularReservasQuiosque,
     dataConsulta,
     setDataConsulta,
     dataConsultaFim,
     setDataConsultaFim,
     reservaVinculada,
     loadingReservaVinculada,
+    canDeleteSelectedQuiosque,
+    deleteBlockReason,
   };
 }

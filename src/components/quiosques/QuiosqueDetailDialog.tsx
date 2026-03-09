@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import { Textarea } from '@/components/ui/textarea';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from '@/components/ui/dialog';
@@ -35,6 +36,8 @@ interface Props {
   onStatusChange: (s: QuiosqueStatus) => void;
   onSave: (updates: { status: QuiosqueStatus; numero: number; tem_churrasqueira: boolean }) => void;
   onDelete: () => void;
+  onInativar: () => void;
+  onDesvincularReservas: (motivo: string) => void;
   saving: boolean;
   dataConsulta: string;
   dataConsultaFim: string;
@@ -51,6 +54,8 @@ interface Props {
     token: string;
   }>;
   loadingReservaVinculada: boolean;
+  canDelete: boolean;
+  deleteBlockReason: string | null;
 }
 
 export function QuiosqueDetailDialog({
@@ -61,19 +66,27 @@ export function QuiosqueDetailDialog({
   onStatusChange,
   onSave,
   onDelete,
+  onInativar,
+  onDesvincularReservas,
   saving,
   dataConsulta,
   dataConsultaFim,
   reservaVinculada,
   loadingReservaVinculada,
+  canDelete,
+  deleteBlockReason,
 }: Props) {
   const [editNumero, setEditNumero] = useState(quiosque?.numero ?? 0);
   const [editChurrasqueira, setEditChurrasqueira] = useState(quiosque?.tem_churrasqueira ?? false);
+  const [desvincularDialogOpen, setDesvincularDialogOpen] = useState(false);
+  const [motivoDesvinculo, setMotivoDesvinculo] = useState('');
 
   useEffect(() => {
     if (quiosque) {
       setEditNumero(quiosque.numero);
       setEditChurrasqueira(quiosque.tem_churrasqueira);
+      setMotivoDesvinculo('');
+      setDesvincularDialogOpen(false);
     }
   }, [quiosque]);
 
@@ -89,32 +102,32 @@ export function QuiosqueDetailDialog({
         {isStaff ? (
           <div className="space-y-4">
             {quiosque?.status === 'ocupado' && (
-            <div className="rounded-lg border p-3 bg-muted/40 space-y-2">
-              <p className="text-sm font-medium">
-                Reserva vinculada no periodo
-                <span className="text-muted-foreground font-normal"> {formatDateBr(dataConsulta)}{dataConsultaFim ? ` -> ${formatDateBr(dataConsultaFim)}` : ''}</span>
-              </p>
-              {loadingReservaVinculada ? (
-                <p className="text-xs text-muted-foreground">Carregando reserva vinculada...</p>
-              ) : reservaVinculada.length === 0 ? (
-                <p className="text-xs text-muted-foreground">Nenhuma reserva vinculada para este quiosque no periodo.</p>
-              ) : (
-                <div className="space-y-2">
-                  {reservaVinculada.map((r) => (
-                    <div key={r.id} className="rounded border bg-background p-2 text-xs space-y-1">
-                      <p><strong>{r.nomeVisitante}</strong> · {r.quantidadePessoas} pessoa(s)</p>
-                      <p>{r.tipo === 'camping' ? 'Camping' : 'Day Use'} · {formatDateBr(r.data)}{r.dataFim ? ` -> ${formatDateBr(r.dataFim)}` : ''}</p>
-                      <p>Status: <strong>{r.statusDescricao || r.status}</strong></p>
-                      <p className="font-mono">{r.token}</p>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+              <div className="rounded-lg border p-3 bg-muted/40 space-y-2">
+                <p className="text-sm font-medium">
+                  Reserva vinculada no periodo
+                  <span className="text-muted-foreground font-normal"> {formatDateBr(dataConsulta)}{dataConsultaFim ? ` -> ${formatDateBr(dataConsultaFim)}` : ''}</span>
+                </p>
+                {loadingReservaVinculada ? (
+                  <p className="text-xs text-muted-foreground">Carregando reserva vinculada...</p>
+                ) : reservaVinculada.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">Nenhuma reserva vinculada para este quiosque no periodo.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {reservaVinculada.map((r) => (
+                      <div key={r.id} className="rounded border bg-background p-2 text-xs space-y-1">
+                        <p><strong>{r.nomeVisitante}</strong> · {r.quantidadePessoas} pessoa(s)</p>
+                        <p>{r.tipo === 'camping' ? 'Camping' : 'Day Use'} · {formatDateBr(r.data)}{r.dataFim ? ` -> ${formatDateBr(r.dataFim)}` : ''}</p>
+                        <p>Status: <strong>{r.statusDescricao || r.status}</strong></p>
+                        <p className="font-mono">{r.token}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             )}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="edit-numero">Número</Label>
+                <Label htmlFor="edit-numero">Numero</Label>
                 <Input
                   id="edit-numero"
                   type="number"
@@ -131,7 +144,7 @@ export function QuiosqueDetailDialog({
                     onCheckedChange={setEditChurrasqueira}
                   />
                   <span className="text-sm text-muted-foreground">
-                    {editChurrasqueira ? '🔥 Sim' : 'Não'}
+                    {editChurrasqueira ? '🔥 Sim' : 'Nao'}
                   </span>
                 </div>
               </div>
@@ -147,41 +160,101 @@ export function QuiosqueDetailDialog({
                 </SelectContent>
               </Select>
             </div>
-            <DialogFooter className="flex !justify-between gap-2">
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button variant="destructive" size="sm" disabled={saving}>
-                    <Trash2 className="h-4 w-4 mr-1.5" /> Excluir
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Excluir Quiosque {quiosque?.numero}?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      Esta ação não pode ser desfeita. O quiosque será removido permanentemente.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                    <AlertDialogAction onClick={onDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                      Confirmar Exclusão
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-              <div className="flex gap-2">
-                <Button variant="outline" onClick={onClose}>Cancelar</Button>
+
+            <div className="space-y-3">
+              {!canDelete && deleteBlockReason && (
+                <div className="rounded-md border border-amber-300/60 bg-amber-50/60 px-3 py-2 text-xs text-amber-900">
+                  {deleteBlockReason}
+                </div>
+              )}
+
+              <div className="flex flex-wrap items-center gap-2">
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="destructive" size="sm" disabled={saving || !canDelete}>
+                      <Trash2 className="h-4 w-4 mr-1.5" /> Excluir
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Excluir Quiosque {quiosque?.numero}?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Esta acao nao pode ser desfeita. O quiosque sera removido permanentemente.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                      <AlertDialogAction onClick={onDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                        Confirmar Exclusao
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+
+                {!canDelete && (
+                  <>
+                    <Button variant="secondary" size="sm" onClick={onInativar} disabled={saving}>
+                      Inativar
+                    </Button>
+
+                    <AlertDialog open={desvincularDialogOpen} onOpenChange={setDesvincularDialogOpen}>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="outline" size="sm" disabled={saving}>
+                          Desvincular reservas
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Desvincular reservas do Quiosque {quiosque?.numero}?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            As reservas permanecem validas, mas sem quiosque associado. Informe o motivo para auditoria.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <div className="space-y-2">
+                          <Label htmlFor="motivo-desvinculo">Motivo</Label>
+                          <Textarea
+                            id="motivo-desvinculo"
+                            rows={3}
+                            value={motivoDesvinculo}
+                            onChange={(e) => setMotivoDesvinculo(e.target.value)}
+                            placeholder="Ex.: Quiosque com inconsistencia operacional."
+                          />
+                        </div>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel disabled={saving}>Cancelar</AlertDialogCancel>
+                          <AlertDialogAction
+                            disabled={saving || !motivoDesvinculo.trim()}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              if (!motivoDesvinculo.trim()) return;
+                              onDesvincularReservas(motivoDesvinculo.trim());
+                              setDesvincularDialogOpen(false);
+                              setMotivoDesvinculo('');
+                            }}
+                          >
+                            Confirmar desvinculo
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </>
+                )}
+              </div>
+
+              <div className="flex items-center justify-end gap-2">
+                <Button variant="outline" size="sm" onClick={onClose}>Cancelar</Button>
                 <Button
+                  size="sm"
                   onClick={() => onSave({ status: newStatus, numero: editNumero, tem_churrasqueira: editChurrasqueira })}
                   disabled={saving}
                 >
                   {saving ? 'Salvando...' : 'Salvar'}
                 </Button>
               </div>
-            </DialogFooter>
+            </div>
           </div>
         ) : (
-          <p className="text-sm text-muted-foreground">Apenas funcionários podem alterar o status dos quiosques.</p>
+          <p className="text-sm text-muted-foreground">Apenas funcionarios podem alterar o status dos quiosques.</p>
         )}
       </DialogContent>
     </Dialog>

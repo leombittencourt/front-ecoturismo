@@ -17,10 +17,13 @@ import {
   type AtualizarQuiosqueRequest,
   type CriarQuiosqueRequest,
   type AtualizarPosicaoQuiosqueRequest,
+  type AcaoAdministrativaQuiosqueResponse,
   type UploadImagensAtrativoRequest,
   type UploadImagensAtrativoResponse,
   type ReordenarImagensAtrativoRequestItem,
   type CriarAtrativoRequest,
+  type GestaoReservaStatusRequest,
+  type GestaoReservaStatusResponse,
 } from "@/services/apiClient";
 
 import type { DashboardData } from '@/types/dashboard';
@@ -167,6 +170,17 @@ export async function excluirQuiosque(id: string): Promise<void> {
   return apiClient.excluirQuiosque(id);
 }
 
+export async function inativarQuiosque(id: string): Promise<void> {
+  return apiClient.inativarQuiosque(id);
+}
+
+export async function desvincularReservasQuiosque(id: string, motivo: string): Promise<AcaoAdministrativaQuiosqueResponse> {
+  return apiClient.acaoAdministrativaQuiosque(id, {
+    acao: 'desvincular_reservas',
+    motivo,
+  });
+}
+
 // Reservas
 function mapReservaDtoToReserva(dto: any): Reserva {
   return {
@@ -217,6 +231,13 @@ export async function validarTicket(token: string, atrativoId?: string | null): 
     valido: true,
     reserva: mapReservaDtoToReserva(reservaLike),
   };
+}
+
+export async function atualizarStatusReservaGestao(
+  id: string,
+  body: GestaoReservaStatusRequest
+): Promise<GestaoReservaStatusResponse> {
+  return apiClient.atualizarStatusReservaGestao(id, body);
 }
 
 // Municípios

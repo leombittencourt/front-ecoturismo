@@ -387,10 +387,6 @@ export default function Reservar() {
         quiosqueId: selectedQuiosque,
       });
 
-      if (selectedQuiosque) {
-        await apiClient.atualizarQuiosque(selectedQuiosque, { status: 'reservado' });
-      }
-
       setConfirmacao({
         token: created?.token || fallbackToken,
         nome: form.nome,
@@ -735,11 +731,9 @@ export default function Reservar() {
                                     <span className={`text-[10px] ${isDisponivel ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground'}`}>
                                       {isDisponivel
                                         ? (isSelected ? '✓ Selecionado' : 'Disponível')
-                                        : normalizedStatus === 'reservado'
-                                          ? 'Reservado'
-                                          : normalizedStatus === 'ocupado'
-                                            ? 'Ocupado'
-                                            : normalizedStatus === 'bloqueado'
+                                        : normalizedStatus === 'ocupado'
+                                          ? 'Ocupado'
+                                          : normalizedStatus === 'bloqueado'
                                               ? 'Bloqueado'
                                               : normalizedStatus === 'inativo'
                                                 ? 'Inativo'

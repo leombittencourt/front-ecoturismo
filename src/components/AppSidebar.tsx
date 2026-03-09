@@ -8,6 +8,7 @@ import {
   Trees,
   Droplets,
   LayoutGrid,
+  ClipboardList,
   Moon,
   Sun,
   Users,
@@ -39,18 +40,21 @@ const prefeituraItems = [
 
 const balnearioItems = [
   { title: 'Painel de Validacao', url: '/balneario', icon: Droplets },
+  { title: 'Gestao de Reservas', url: '/reservas/gestao', icon: ClipboardList },
   { title: 'Atrativos', url: '/gestao/atrativos', icon: MapPin },
   { title: 'Quiosques', url: '/quiosques', icon: LayoutGrid },
 ];
 
 const adminOperacaoItems = [
   { title: 'Painel de Validacao', url: '/balneario', icon: Droplets },
+  { title: 'Gestao de Reservas', url: '/reservas/gestao', icon: ClipboardList },
 ];
 
 const adminItems = [
   { title: 'Dashboard', url: '/dashboard', icon: LayoutDashboard },
   { title: 'Atrativos', url: '/gestao/atrativos', icon: MapPin },
   { title: 'Quiosques', url: '/quiosques', icon: LayoutGrid },
+  { title: 'Gestao de Reservas', url: '/reservas/gestao', icon: ClipboardList },
   { title: 'Usuarios', url: '/usuarios', icon: Users },
   { title: 'Analytics', url: '/analytics', icon: BarChart3 },
   { title: 'Relatorios', url: '/relatorios', icon: FileText },

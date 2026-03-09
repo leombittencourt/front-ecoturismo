@@ -204,7 +204,7 @@ export type UploadImagensAtrativoResponse = {
 export interface QuiosqueDto {
   id: string;
   numero: number;
-  status: "disponivel" | "reservado" | "ocupado" | "manutencao" | "bloqueado" | "inativo" | string;
+  status: "disponivel" | "ocupado" | "manutencao" | "bloqueado" | "inativo" | string;
   posicao_x?: number;
   posicaoX?: number;
   PosicaoX?: number;
@@ -227,7 +227,7 @@ export type CriarQuiosqueRequest = {
 
 export type AtualizarQuiosqueRequest = Partial<{
   numero: number;
-  status: "disponivel" | "reservado" | "ocupado" | "manutencao" | "bloqueado" | "inativo";
+  status: "disponivel" | "ocupado" | "manutencao" | "bloqueado" | "inativo";
   temChurrasqueira: boolean;
   posicaoX: number;
   posicaoY: number;
@@ -236,6 +236,25 @@ export type AtualizarQuiosqueRequest = Partial<{
 export type AtualizarPosicaoQuiosqueRequest = {
   posicaoX: number;
   posicaoY: number;
+};
+
+export type AcaoAdministrativaQuiosqueRequest = {
+  acao: "inativar" | "editar" | "desvincular_reservas" | "excluir";
+  motivo: string;
+  numero?: number;
+  temChurrasqueira?: boolean;
+  status?: number;
+  posicaoX?: number;
+  posicaoY?: number;
+  desvincularReservasAtivasEFuturas?: boolean;
+};
+
+export type AcaoAdministrativaQuiosqueResponse = {
+  success: boolean;
+  message: string;
+  acao: string;
+  reservasAfetadas: number;
+  quiosque?: QuiosqueDto | null;
 };
 
 export type ReservaDto = {
@@ -369,6 +388,18 @@ export type ValidarTicketResponse = {
   isValid?: boolean;
   reserva?: ReservaDto;
 } & Partial<ReservaDto>;
+
+export type GestaoReservaStatusRequest = {
+  status: "confirmada" | "em_andamento" | "concluida" | "cancelada" | "validada" | "nao_compareceu";
+  motivo: string;
+};
+
+export type GestaoReservaStatusResponse = {
+  success: boolean;
+  message: string;
+  statusAnterior: string;
+  statusNovo: string;
+};
 
 export type PainelValidacaoDto = {
   atrativoId?: string;
@@ -699,6 +730,16 @@ function parsePagedResponse<T>(raw: any, parser: (item: any) => T): PagedResult<
   };
 }
 
+function toQuiosqueStatusApiValue(status: AtualizarQuiosqueRequest["status"]): number | undefined {
+  if (!status) return undefined;
+  if (status === "disponivel") return 1;
+  if (status === "ocupado") return 2;
+  if (status === "manutencao") return 3;
+  if (status === "bloqueado") return 4;
+  if (status === "inativo") return 5;
+  return undefined;
+}
+
 export const apiClient = {
   
   health: () => http.get<string>("/health"),
@@ -777,13 +818,21 @@ export const apiClient = {
 
   criarQuiosque: (body: CriarQuiosqueRequest) => http.post<QuiosqueDto>("/quiosques", body),
 
-  atualizarQuiosque: (id: string, body: AtualizarQuiosqueRequest) =>
-    http.put<void>(`/quiosques/${id}`, body),
+  atualizarQuiosque: (id: string, body: AtualizarQuiosqueRequest) => {
+    const status = toQuiosqueStatusApiValue(body.status);
+    const payload: Record<string, unknown> = { ...body };
+    delete payload.status;
+    if (status !== undefined) payload.status = status;
+    return http.put<void>(`/quiosques/${id}`, payload);
+  },
 
   atualizarPosicaoQuiosque: (id: string, body: AtualizarPosicaoQuiosqueRequest) =>
     http.patch<void>(`/quiosques/${id}/posicao`, body),
 
   excluirQuiosque: (id: string) => http.del<void>(`/quiosques/${id}`),
+  inativarQuiosque: (id: string) => http.patch<void>(`/quiosques/${id}/inativar`, {}),
+  acaoAdministrativaQuiosque: (id: string, body: AcaoAdministrativaQuiosqueRequest) =>
+    http.patch<AcaoAdministrativaQuiosqueResponse>(`/quiosques/${id}/acao-administrativa`, body),
 
   // Reservas
   listarReservas: () => http.get<ReservaDto[]>("/reservas"),
@@ -799,6 +848,8 @@ export const apiClient = {
       }`
     ),
   obterReserva: (id: string) => http.get<ReservaDto>(`/reservas/${id}`),
+  atualizarStatusReservaGestao: (id: string, body: GestaoReservaStatusRequest) =>
+    http.patch<GestaoReservaStatusResponse>(`/reservas/${id}/gestao-status`, body),
   obterTicketPublico: (token: string) =>
     http.get<TicketPublicoDto>(`/reservas/ticket/${encodeURIComponent(token)}`),
   validarTicket: (body: ValidarTicketRequest) => http.post<ValidarTicketResponse>("/validacoes", body),

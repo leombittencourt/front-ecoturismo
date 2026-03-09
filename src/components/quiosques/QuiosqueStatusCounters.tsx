@@ -8,7 +8,6 @@ interface Props {
 export function QuiosqueStatusCounters({ quiosques }: Props) {
   const counts: Record<QuiosqueStatus, number> = {
     disponivel: quiosques.filter(q => q.status === 'disponivel').length,
-    reservado: quiosques.filter(q => q.status === 'reservado').length,
     ocupado: quiosques.filter(q => q.status === 'ocupado').length,
     manutencao: quiosques.filter(q => q.status === 'manutencao').length,
     bloqueado: quiosques.filter(q => q.status === 'bloqueado').length,
@@ -16,7 +15,7 @@ export function QuiosqueStatusCounters({ quiosques }: Props) {
   };
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
       {(Object.entries(STATUS_CONFIG) as [QuiosqueStatus, typeof STATUS_CONFIG[QuiosqueStatus]][]).map(([key, cfg]) => {
         const Icon = cfg.icon;
         return (

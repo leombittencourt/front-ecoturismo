@@ -22,9 +22,11 @@ export default function Quiosques() {
     quiosques, loading, atrativos, selectedAtrativoId, handleSelectAtrativo,
     selectedQuiosque, newStatus, setNewStatus, saving,
     handleOpenDialog, handleCloseDialog, handleSaveQuiosque, handleDragEnd,
-    handleCreateQuiosque, handleDeleteQuiosque,
+    handleCreateQuiosque, handleDeleteQuiosque, handleInativarQuiosque,
+    handleDesvincularReservasQuiosque,
     dataConsulta, dataConsultaFim,
     reservaVinculada, loadingReservaVinculada,
+    canDeleteSelectedQuiosque, deleteBlockReason,
   } = useQuiosques();
 
   const filtered = quiosques.filter(q => {
@@ -111,11 +113,15 @@ export default function Quiosques() {
         onStatusChange={setNewStatus}
         onSave={handleSaveQuiosque}
         onDelete={() => selectedQuiosque && handleDeleteQuiosque(selectedQuiosque.id)}
+        onInativar={() => selectedQuiosque && handleInativarQuiosque(selectedQuiosque.id)}
+        onDesvincularReservas={(motivo) => selectedQuiosque && handleDesvincularReservasQuiosque(selectedQuiosque.id, motivo)}
         saving={saving}
         dataConsulta={dataConsulta}
         dataConsultaFim={dataConsultaFim}
         reservaVinculada={reservaVinculada}
         loadingReservaVinculada={loadingReservaVinculada}
+        canDelete={canDeleteSelectedQuiosque}
+        deleteBlockReason={deleteBlockReason}
       />
 
       <CreateQuiosqueDialog
