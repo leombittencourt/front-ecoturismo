@@ -21,7 +21,7 @@ import { fetchAtrativosPage, criarAtrativo } from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import PaginationControls from '@/components/PaginationControls';
-import { type Atrativo } from '@/services/apiClient';
+import { apiClient, type Atrativo } from '@/services/apiClient';
 import { serializarDescricaoDetalhada, type AtrativoDescricaoDetalhada } from '@/utils/atrativoDescricao';
 import { ITEMS_PER_PAGE } from '@/constants/pagination';
 import { MapPin, Users, Droplets, Mountain, TreePine, Tent, Plus } from 'lucide-react';
@@ -144,6 +144,37 @@ export default function Atrativos() {
     longitude: '',
   });
   useEffect(() => {
+    const isBalneario = hasRole(['balneario']);
+    const atrativoIdUsuario = String(user?.atrativoId ?? '').trim();
+
+    if (isBalneario) {
+      if (!atrativoIdUsuario) {
+        setAtrativos([]);
+        setTotalItems(0);
+        setTotalPages(1);
+        setLoading(false);
+        return;
+      }
+
+      setLoading(true);
+      apiClient.obterAtrativo(atrativoIdUsuario)
+        .then((atrativo) => {
+          setAtrativos(atrativo ? [atrativo] : []);
+          setTotalItems(atrativo ? 1 : 0);
+          setTotalPages(1);
+          setCurrentPage(1);
+        })
+        .catch(() => {
+          setAtrativos([]);
+          setTotalItems(0);
+          setTotalPages(1);
+        })
+        .finally(() => {
+          setLoading(false);
+        });
+      return;
+    }
+
     if (!user?.municipioId) {
       setAtrativos([]);
       setTotalItems(0);
@@ -162,7 +193,7 @@ export default function Atrativos() {
       .finally(() => {
         setLoading(false);
       });
-  }, [currentPage, user?.municipioId]);
+  }, [currentPage, user?.municipioId, user?.atrativoId, hasRole]);
 
   useEffect(() => {
     if (currentPage > totalPages) {
