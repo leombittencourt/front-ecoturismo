@@ -278,6 +278,33 @@ export type CriarReservaRequest = {
   quiosqueId?: string | null;
 };
 
+export type TicketPublicoDto = {
+  id?: string;
+  Id?: string;
+  nomeVisitante?: string;
+  NomeVisitante?: string;
+  email?: string;
+  Email?: string;
+  data?: string;
+  Data?: string;
+  dataFim?: string | null;
+  DataFim?: string | null;
+  tipo?: string;
+  Tipo?: string;
+  quantidadePessoas?: number;
+  QuantidadePessoas?: number;
+  status?: string;
+  Status?: string;
+  token?: string;
+  Token?: string;
+  atrativoNome?: string;
+  AtrativoNome?: string;
+  quiosqueNumero?: number | null;
+  QuiosqueNumero?: number | null;
+  quiosqueChurrasqueira?: boolean;
+  QuiosqueChurrasqueira?: boolean;
+};
+
 export type ListAtrativosRequest = {
   MunicipioId?: string | null;
   page?: number;
@@ -772,6 +799,8 @@ export const apiClient = {
       }`
     ),
   obterReserva: (id: string) => http.get<ReservaDto>(`/reservas/${id}`),
+  obterTicketPublico: (token: string) =>
+    http.get<TicketPublicoDto>(`/reservas/ticket/${encodeURIComponent(token)}`),
   validarTicket: (body: ValidarTicketRequest) => http.post<ValidarTicketResponse>("/validacoes", body),
 
   // Dashboard
