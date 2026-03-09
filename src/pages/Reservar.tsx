@@ -104,7 +104,7 @@ export default function Reservar() {
     token: string; nome: string; data: string; dataFim?: string;
     tipo: string; quantidade: number; atrativoNome: string; quiosqueNumero?: number;
   } | null>(null);
-  const [ocupacaoPeriodo, setOcupacaoPeriodo] = useState<number | null>(null);
+  const [ocupacaoPeriodoPorAtrativo, setOcupacaoPeriodoPorAtrativo] = useState<Record<string, number>>({});
   const [quiosques, setQuiosques] = useState<QuiosqueOption[]>([]);
   const [selectedQuiosque, setSelectedQuiosque] = useState<string | null>(null);
   const { toast } = useToast();
@@ -224,8 +224,13 @@ export default function Reservar() {
     ? `Reserve sua visita - ${atrativo.nome}`
     : 'Reserve sua visita ao atrativo';
   const isCamping = tipoReserva === 'camping';
+  const periodoSelecionadoValido = Boolean(date && (!isCamping || dateFim));
   const quantidade = Math.max(0, adultos) + Math.max(0, criancas);
-  const ocupacaoAtual = ocupacaoPeriodo ?? atrativo?.ocupacao_atual ?? 0;
+  const ocupacaoAtual = atrativo
+    ? (periodoSelecionadoValido
+        ? (ocupacaoPeriodoPorAtrativo[atrativo.id] ?? atrativo.ocupacao_atual)
+        : atrativo.ocupacao_atual)
+    : 0;
   const vagasRestantes = atrativo ? Math.max(0, atrativo.capacidade_maxima - ocupacaoAtual) : 0;
   const pctOcupacao = atrativo && atrativo.capacidade_maxima > 0
     ? Math.round((ocupacaoAtual / atrativo.capacidade_maxima) * 100)
@@ -277,51 +282,86 @@ export default function Reservar() {
   useEffect(() => {
     let ativo = true;
 
-    const calcularOcupacaoPeriodo = async () => {
-      if (!selectedAtrativo || !date) {
-        setOcupacaoPeriodo(null);
+    const calcularOcupacaoPorAtrativo = async () => {
+      if (!date || (isCamping && !dateFim) || atrativos.length === 0) {
+        setOcupacaoPeriodoPorAtrativo({});
+        return;
+      }
+
+      const inicioIso = date.toISOString().split('T')[0];
+      const fimSelecionado = isCamping && dateFim ? dateFim : date;
+      const fimIso = fimSelecionado.toISOString().split('T')[0];
+      const diasSelecionados = isoRange(inicioIso, fimIso);
+
+      if (diasSelecionados.length === 0) {
+        setOcupacaoPeriodoPorAtrativo({});
         return;
       }
 
       try {
-        const reservas = await apiClient.listarReservasPorAtrativo(selectedAtrativo);
-        if (!ativo) return;
+        const entries = await Promise.all(
+          atrativos.map(async (a) => {
+            try {
+              const reservas = await apiClient.listarReservasPorAtrativo(a.id);
+              let maiorOcupacao = 0;
 
-        const inicioIso = date.toISOString().split('T')[0];
-        const fimSelecionado = isCamping && dateFim ? dateFim : date;
-        const fimIso = fimSelecionado.toISOString().split('T')[0];
-        const diasSelecionados = isoRange(inicioIso, fimIso);
+              for (const dia of diasSelecionados) {
+                const ocupacaoDia = (reservas ?? []).reduce((acc, r: any) => {
+                  if (!isReservaAtiva(r.status)) return acc;
 
-        let maiorOcupacao = 0;
-        for (const dia of diasSelecionados) {
-          const ocupacaoDia = (reservas ?? []).reduce((acc, r: any) => {
-            if (!isReservaAtiva(r.status)) return acc;
+                  const reservaInicio = toIsoDate(r.data);
+                  const reservaFim = toIsoDate(r.dataFim) ?? reservaInicio;
+                  if (!reservaInicio || !reservaFim) return acc;
 
-            const reservaInicio = toIsoDate(r.data);
-            const reservaFim = toIsoDate(r.dataFim) ?? reservaInicio;
-            if (!reservaInicio || !reservaFim) return acc;
+                  if (dia >= reservaInicio && dia <= reservaFim) {
+                    return acc + Number(r.quantidadePessoas ?? r.quantidade_pessoas ?? 1);
+                  }
+                  return acc;
+                }, 0);
 
-            if (dia >= reservaInicio && dia <= reservaFim) {
-              return acc + Number(r.quantidadePessoas ?? r.quantidade_pessoas ?? 1);
+                maiorOcupacao = Math.max(maiorOcupacao, ocupacaoDia);
+              }
+
+              return [a.id, maiorOcupacao] as const;
+            } catch {
+              return [a.id, a.ocupacao_atual] as const;
             }
-            return acc;
-          }, 0);
+          })
+        );
 
-          maiorOcupacao = Math.max(maiorOcupacao, ocupacaoDia);
-        }
-
-        setOcupacaoPeriodo(maiorOcupacao);
+        if (!ativo) return;
+        setOcupacaoPeriodoPorAtrativo(Object.fromEntries(entries));
       } catch {
         if (!ativo) return;
-        setOcupacaoPeriodo(null);
+        setOcupacaoPeriodoPorAtrativo({});
       }
     };
 
-    calcularOcupacaoPeriodo();
+    calcularOcupacaoPorAtrativo();
     return () => {
       ativo = false;
     };
-  }, [date, dateFim, isCamping, selectedAtrativo]);
+  }, [atrativos, date, dateFim, isCamping]);
+
+  useEffect(() => {
+    if (!selectedAtrativo || !periodoSelecionadoValido) return;
+
+    const atrativoSelecionado = atrativos.find((a) => a.id === selectedAtrativo);
+    if (!atrativoSelecionado) return;
+
+    const ocupacaoNaData = ocupacaoPeriodoPorAtrativo[selectedAtrativo];
+    if (ocupacaoNaData === undefined) return;
+
+    if (ocupacaoNaData >= atrativoSelecionado.capacidade_maxima) {
+      setSelectedAtrativo('');
+      setStep(1);
+      toast({
+        title: 'Atrativo lotado na data',
+        description: `${atrativoSelecionado.nome} está sem vagas para o período selecionado.`,
+        variant: 'destructive',
+      });
+    }
+  }, [selectedAtrativo, periodoSelecionadoValido, ocupacaoPeriodoPorAtrativo, atrativos, toast]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -532,15 +572,26 @@ export default function Reservar() {
                         <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
                         <SelectContent>
                           {atrativos.map(a => {
-                            const pct = Math.round((a.ocupacao_atual / a.capacidade_maxima) * 100);
+                            const ocupacaoReferencia = periodoSelecionadoValido
+                              ? (ocupacaoPeriodoPorAtrativo[a.id] ?? a.ocupacao_atual)
+                              : a.ocupacao_atual;
+                            const pct = a.capacidade_maxima > 0
+                              ? Math.round((ocupacaoReferencia / a.capacidade_maxima) * 100)
+                              : 0;
+                            const lotadoNaData = periodoSelecionadoValido && ocupacaoReferencia >= a.capacidade_maxima;
                             return (
-                              <SelectItem key={a.id} value={a.id}>
-                                {a.nome} — {pct}% ocupado
+                              <SelectItem key={a.id} value={a.id} disabled={lotadoNaData}>
+                                {a.nome} — {pct}% ocupado{lotadoNaData ? ' (Lotado na data)' : ''}
                               </SelectItem>
                             );
                           })}
                         </SelectContent>
                       </Select>
+                      {periodoSelecionadoValido && (
+                        <p className="text-xs text-muted-foreground">
+                          Opções marcadas como "Lotado na data" ficam bloqueadas para o período selecionado.
+                        </p>
+                      )}
                     </div>
 
                     <div className="space-y-1">
