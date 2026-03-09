@@ -1,5 +1,5 @@
 ﻿import { useEffect, useMemo, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -7,7 +7,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import SEOHead from '@/components/SEOHead';
 import { apiClient } from '@/services/apiClient';
 import { PUBLIC_ATRATIVOS, slugifyAtrativo, type PublicAtrativo } from '@/data/publicAtrativos';
-import { CalendarCheck, Clock3, Gauge, MapPin, ShieldCheck, Users, X, ChevronLeft, ChevronRight, PlayCircle, Map } from 'lucide-react';
+import { CalendarCheck, Clock3, Gauge, MapPin, ShieldCheck, Users, X, ChevronLeft, ChevronRight, PlayCircle, Map, ArrowLeft } from 'lucide-react';
 
 type DestinoStatus = 'disponivel' | 'quase-cheio' | 'lotado';
 
@@ -154,6 +154,7 @@ function buildFromPublicAtrativo(spot: PublicAtrativo): DestinoViewModel {
 
 export default function AtrativoDestino() {
   const { slug } = useParams<{ slug: string }>();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [destino, setDestino] = useState<DestinoViewModel | null>(null);
   const [activePhotoIndex, setActivePhotoIndex] = useState(0);
@@ -319,6 +320,14 @@ export default function AtrativoDestino() {
   const vagasPercent = Math.max(0, 100 - ocupacaoPercent);
   const statusMensagem = contextualStatusMessage(destino?.status ?? 'disponivel');
 
+  const handleBack = () => {
+    if (window.history.length > 1) {
+      navigate(-1);
+      return;
+    }
+    navigate('/atrativos');
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background">
@@ -360,7 +369,14 @@ export default function AtrativoDestino() {
         <div className="absolute inset-0 bg-gradient-to-r from-black/85 via-black/60 to-black/72" />
         <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-black/25" />
         <div className="absolute inset-0">
-          <div className="max-w-6xl mx-auto px-4 h-full flex flex-col justify-end pb-10">
+          <div className="max-w-6xl mx-auto px-4 h-full flex flex-col justify-between py-6 sm:py-8">
+            <div>
+              <Button type="button" variant="outline" size="sm" onClick={handleBack} className="gap-1.5 bg-black/25 border-white/40 text-white hover:bg-black/40 hover:text-white">
+                <ArrowLeft className="h-4 w-4" />
+                Voltar
+              </Button>
+            </div>
+            <div>
             <Badge className="w-fit bg-white/15 border border-white/30 text-white">{destino.categoria}</Badge>
             <h1 className="mt-3 text-3xl sm:text-5xl font-heading font-extrabold text-white drop-shadow-lg">{destino.nome}</h1>
             <p className="mt-2 text-white/95 font-medium drop-shadow-[0_1px_2px_rgba(0,0,0,0.55)] flex items-center gap-2">
@@ -373,6 +389,7 @@ export default function AtrativoDestino() {
             <p className="mt-2 text-sm sm:text-base italic text-white/90 drop-shadow-[0_1px_2px_rgba(0,0,0,0.55)]">
               Refugio natural ideal para familias e amantes da natureza.
             </p>
+            </div>
           </div>
         </div>
       </header>

@@ -1,12 +1,13 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "next-themes";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { useConfiguracoes } from "@/hooks/useConfiguracoes";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { GlobalLoadingProvider, useGlobalLoading } from "@/contexts/GlobalLoadingContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AppLayout from "@/components/AppLayout";
 import Index from "@/pages/Index";
@@ -17,6 +18,7 @@ import AtrativoDetalhe from "@/pages/AtrativoDetalhe";
 import AtrativosPublicos from "@/pages/AtrativosPublicos";
 import AtrativoDestino from "@/pages/AtrativoDestino";
 import Reservar from "@/pages/Reservar";
+import ConsultarTicket from "@/pages/ConsultarTicket";
 import TicketPublico from "@/pages/TicketPublico";
 import Analytics from "@/pages/Analytics";
 import Relatorios from "@/pages/Relatorios";
@@ -30,6 +32,29 @@ import Install from "@/pages/Install";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
+
+function RouteLoadingBridge() {
+  const location = useLocation();
+  const { startLoading, stopLoading } = useGlobalLoading();
+  const previousPathRef = useRef<string>(location.pathname);
+
+  useEffect(() => {
+    if (previousPathRef.current === location.pathname) return;
+    previousPathRef.current = location.pathname;
+
+    startLoading("Carregando pagina...");
+    const timer = window.setTimeout(() => {
+      stopLoading();
+    }, 450);
+
+    return () => {
+      window.clearTimeout(timer);
+      stopLoading();
+    };
+  }, [location.pathname, startLoading, stopLoading]);
+
+  return null;
+}
 
 function ThemeColorApplier() {
   const { configs, loading } = useConfiguracoes();
@@ -53,34 +78,38 @@ const App = () => (
         <Sonner />
         <ThemeColorApplier />
         <AuthProvider>
-          <BrowserRouter>
-            <Routes>
-              {/* Public routes */}
-              <Route path="/" element={<Index />} />
-              <Route path="/atrativos" element={<AtrativosPublicos />} />
-              <Route path="/atrativos/:slug" element={<AtrativoDestino />} />
-              <Route path="/reservar" element={<Reservar />} />
-              <Route path="/ticket/:token" element={<TicketPublico />} />
-              <Route path="/login" element={<Login />} />
-              <Route path="/install" element={<Install />} />
+          <GlobalLoadingProvider>
+            <BrowserRouter>
+              <RouteLoadingBridge />
+              <Routes>
+                {/* Public routes */}
+                <Route path="/" element={<Index />} />
+                <Route path="/atrativos" element={<AtrativosPublicos />} />
+                <Route path="/atrativos/:slug" element={<AtrativoDestino />} />
+                <Route path="/reservar" element={<Reservar />} />
+                <Route path="/consultar-ticket" element={<ConsultarTicket />} />
+                <Route path="/ticket/:token" element={<TicketPublico />} />
+                <Route path="/login" element={<Login />} />
+                <Route path="/install" element={<Install />} />
 
-              {/* Protected routes */}
-              <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
-                <Route path="/dashboard" element={<Dashboard />} />
-                <Route path="/gestao/atrativos" element={<Atrativos />} />
-                <Route path="/gestao/atrativos/:id" element={<AtrativoDetalhe />} />
-                <Route path="/analytics" element={<Analytics />} />
-                <Route path="/relatorios" element={<Relatorios />} />
-                <Route path="/quiosques" element={<ProtectedRoute roles={['admin', 'balneario']}><Quiosques /></ProtectedRoute>} />
-                <Route path="/reservas/gestao" element={<ProtectedRoute roles={['admin', 'balneario']}><ReservasGestao /></ProtectedRoute>} />
-                <Route path="/balneario" element={<ProtectedRoute roles={['balneario', 'admin']}><Balneario /></ProtectedRoute>} />
-                <Route path="/admin" element={<ProtectedRoute roles={['admin']}><Admin /></ProtectedRoute>} />
-                <Route path="/usuarios" element={<ProtectedRoute roles={['admin']}><Usuarios /></ProtectedRoute>} />
-                <Route path="/parametros" element={<ProtectedRoute roles={['admin', 'prefeitura']}><Parametros /></ProtectedRoute>} />
-              </Route>
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </BrowserRouter>
+                {/* Protected routes */}
+                <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
+                  <Route path="/dashboard" element={<Dashboard />} />
+                  <Route path="/gestao/atrativos" element={<Atrativos />} />
+                  <Route path="/gestao/atrativos/:id" element={<AtrativoDetalhe />} />
+                  <Route path="/analytics" element={<Analytics />} />
+                  <Route path="/relatorios" element={<Relatorios />} />
+                  <Route path="/quiosques" element={<ProtectedRoute roles={['admin', 'balneario']}><Quiosques /></ProtectedRoute>} />
+                  <Route path="/reservas/gestao" element={<ProtectedRoute roles={['admin', 'balneario']}><ReservasGestao /></ProtectedRoute>} />
+                  <Route path="/balneario" element={<ProtectedRoute roles={['balneario', 'admin']}><Balneario /></ProtectedRoute>} />
+                  <Route path="/admin" element={<ProtectedRoute roles={['admin']}><Admin /></ProtectedRoute>} />
+                  <Route path="/usuarios" element={<ProtectedRoute roles={['admin']}><Usuarios /></ProtectedRoute>} />
+                  <Route path="/parametros" element={<ProtectedRoute roles={['admin', 'prefeitura']}><Parametros /></ProtectedRoute>} />
+                </Route>
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </BrowserRouter>
+          </GlobalLoadingProvider>
         </AuthProvider>
       </TooltipProvider>
     </ThemeProvider>

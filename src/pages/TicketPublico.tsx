@@ -102,9 +102,14 @@ export default function TicketPublico() {
               <XCircle className="h-16 w-16 mx-auto text-destructive" />
               <h2 className="text-xl font-heading font-bold">Ticket n\u00e3o encontrado</h2>
               <p className="text-muted-foreground text-sm">O token informado n\u00e3o corresponde a nenhuma reserva.</p>
-              <Link to="/reservar">
-                <Button variant="outline">Fazer nova reserva</Button>
-              </Link>
+              <div className="flex flex-col sm:flex-row justify-center gap-2">
+                <Link to="/consultar-ticket">
+                  <Button variant="outline">Consultar outro token</Button>
+                </Link>
+                <Link to="/reservar">
+                  <Button variant="outline">Fazer nova reserva</Button>
+                </Link>
+              </div>
             </CardContent>
           </Card>
         ) : ticket ? (

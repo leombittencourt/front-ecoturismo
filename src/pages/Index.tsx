@@ -1,6 +1,7 @@
 ﻿import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   Trees,
   Waves,
@@ -17,6 +18,7 @@ import {
   BadgeCheck,
 } from 'lucide-react';
 import { useConfiguracoes } from '@/hooks/useConfiguracoes';
+import { useGlobalLoading } from '@/contexts/GlobalLoadingContext';
 import SEOHead from '@/components/SEOHead';
 import { apiClient, type BannerDto } from '@/services/apiClient';
 import { PUBLIC_ATRATIVOS, slugifyAtrativo } from '@/data/publicAtrativos';
@@ -138,11 +140,13 @@ function getOcupacaoBadge(pct: number) {
 
 export default function Index() {
   const { configs } = useConfiguracoes();
+  const { startLoading, stopLoading } = useGlobalLoading();
   const [atrativos, setAtrativos] = useState<AtrativoCard[]>([]);
   const [totalAtrativosMunicipio, setTotalAtrativosMunicipio] = useState(0);
   const [totalModalidadesExperiencia, setTotalModalidadesExperiencia] = useState(0);
   const [heroBanners, setHeroBanners] = useState<HeroBanner[]>([]);
   const [heroIndex, setHeroIndex] = useState(0);
+  const [loadingHeroBanners, setLoadingHeroBanners] = useState(true);
   const [municipioLogoUrl, setMunicipioLogoUrl] = useState('');
   const municipioId = (import.meta.env.VITE_MUNICIPIO_ID as string | undefined)?.trim();
   const aboutLogoUrl = normalizeImageValue(configs.logo_publica ?? '') || municipioLogoUrl;
@@ -267,6 +271,15 @@ export default function Index() {
 
   useEffect(() => {
     let active = true;
+    let loadingHandled = false;
+    setLoadingHeroBanners(true);
+    startLoading('Carregando pagina...');
+
+    const finishLoading = () => {
+      if (loadingHandled) return;
+      loadingHandled = true;
+      stopLoading();
+    };
 
     apiClient
       .listarBanners(true)
@@ -286,16 +299,21 @@ export default function Index() {
           .map(({ ordem: _ordem, ...banner }) => banner);
 
         setHeroBanners(mapped);
+        setLoadingHeroBanners(false);
+        finishLoading();
       })
       .catch(() => {
         if (!active) return;
         setHeroBanners([]);
+        setLoadingHeroBanners(false);
+        finishLoading();
       });
 
     return () => {
       active = false;
+      finishLoading();
     };
-  }, []);
+  }, [startLoading, stopLoading]);
 
   useEffect(() => {
     setHeroIndex(0);
@@ -312,9 +330,7 @@ export default function Index() {
   }, [heroBanners.length]);
 
   const currentBanner = heroBanners[heroIndex] ?? null;
-  const heroImagemUrl =
-    currentBanner?.imagemUrl ||
-    'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?auto=format&fit=crop&w=1920&q=80';
+  const heroImagemUrl = currentBanner?.imagemUrl ?? '';
   const heroTitulo = currentBanner?.titulo?.trim() || 'Explore as belezas naturais de Rio Verde - MS';
   const heroSubtitulo =
     currentBanner?.subtitulo?.trim() ||
@@ -327,6 +343,62 @@ export default function Index() {
     configs.sobre_ecoturismo_texto_2?.trim() ||
     'A sustentabilidade é um eixo central da gestão turística, com foco em uso consciente dos atrativos, preservação de fauna e flora e incentivo ao desenvolvimento econômico local de forma equilibrada.';
 
+  if (loadingHeroBanners) {
+    return (
+      <div className="min-h-screen bg-background">
+        <SEOHead
+          title="EcoTurismo - Gestão Inteligente do Ecoturismo Municipal"
+          description="Reserve visitas a balneários, cachoeiras e trilhas. Acompanhe ocupação em tempo real e garanta sustentabilidade ambiental."
+        />
+
+        <section className="relative overflow-hidden bg-muted/30 px-4 py-6 sm:py-8">
+          <div className="max-w-6xl mx-auto space-y-6">
+            <div className="flex items-center justify-between">
+              <Skeleton className="h-8 w-52 bg-slate-300/35" />
+              <Skeleton className="h-6 w-64 bg-slate-300/30" />
+            </div>
+            <div className="space-y-4 pt-4 pb-8">
+              <Skeleton className="h-5 w-44 bg-slate-300/30" />
+              <Skeleton className="h-14 w-[78%] bg-slate-300/35" />
+              <Skeleton className="h-14 w-[62%] bg-slate-300/35" />
+              <Skeleton className="h-6 w-[58%] bg-slate-300/30" />
+              <div className="flex gap-3 pt-2">
+                <Skeleton className="h-11 w-44 bg-slate-300/35" />
+                <Skeleton className="h-11 w-44 bg-slate-300/30" />
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="max-w-6xl mx-auto px-4 py-14">
+          <Skeleton className="h-10 w-[38%] mb-4 bg-slate-300/30" />
+          <Skeleton className="h-5 w-[82%] mb-2 bg-slate-300/25" />
+          <Skeleton className="h-5 w-[75%] mb-6 bg-slate-300/25" />
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <Skeleton className="h-20 w-full bg-slate-300/30" />
+            <Skeleton className="h-20 w-full bg-slate-300/30" />
+            <Skeleton className="h-20 w-full bg-slate-300/30" />
+          </div>
+        </section>
+
+        <section className="max-w-6xl mx-auto px-4 pb-14">
+          <Skeleton className="h-10 w-[42%] mb-3 bg-slate-300/30" />
+          <Skeleton className="h-5 w-[66%] mb-6 bg-slate-300/25" />
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            {Array.from({ length: 3 }).map((_, idx) => (
+              <div key={idx} className="rounded-xl border border-border p-4 space-y-3">
+                <Skeleton className="h-40 w-full bg-slate-300/30" />
+                <Skeleton className="h-6 w-[72%] bg-slate-300/30" />
+                <Skeleton className="h-4 w-[52%] bg-slate-300/25" />
+                <Skeleton className="h-10 w-full bg-slate-300/30" />
+              </div>
+            ))}
+          </div>
+        </section>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <SEOHead
@@ -336,16 +408,18 @@ export default function Index() {
       {/* Hero */}
       <header className="relative overflow-hidden text-white">
         <div className="absolute inset-0 bg-gradient-to-br from-primary via-secondary to-accent/80" />
-        <>
-          <img
-            src={heroImagemUrl}
-            alt={heroTitulo}
-            className="absolute inset-0 h-full w-full object-cover"
-            loading="eager"
-          />
-          <div className="absolute inset-0 bg-gradient-to-r from-black/75 via-black/40 to-black/60" />
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(255,255,255,0.16),transparent_35%)]" />
-        </>
+        {!loadingHeroBanners && heroImagemUrl ? (
+          <>
+            <img
+              src={heroImagemUrl}
+              alt={heroTitulo}
+              className="absolute inset-0 h-full w-full object-cover"
+              loading="eager"
+            />
+            <div className="absolute inset-0 bg-gradient-to-r from-black/75 via-black/40 to-black/60" />
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(255,255,255,0.16),transparent_35%)]" />
+          </>
+        ) : null}
         <nav className="relative z-10 max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             {configs.logo_publica ? (
@@ -366,6 +440,9 @@ export default function Index() {
             </Link>
             <Link to="/reservar" className="text-white/80 hover:text-white transition-all duration-200 hover:-translate-y-0.5">
               Reservas
+            </Link>
+            <Link to="/consultar-ticket" className="text-white/80 hover:text-white transition-all duration-200 hover:-translate-y-0.5">
+              Consultar ticket
             </Link>
             <Link to="/login" className="text-white/80 hover:text-white transition-all duration-200 hover:-translate-y-0.5">
               Área Administrativa
@@ -406,7 +483,7 @@ export default function Index() {
             </div>
           </div>
 
-          {heroBanners.length > 1 && (
+          {!loadingHeroBanners && heroBanners.length > 1 && (
             <div className="mt-8 flex items-center gap-3">
               <button
                 type="button"

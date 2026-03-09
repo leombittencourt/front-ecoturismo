@@ -59,6 +59,14 @@ export default function PublicPageHeader({ title, subtitle }: PublicPageHeaderPr
             >
               Reservas
             </NavLink>
+            <NavLink
+              to="/consultar-ticket"
+              className={({ isActive }) =>
+                `rounded-md px-3 py-1.5 transition-colors ${isActive ? 'bg-primary text-primary-foreground' : 'text-foreground/75 hover:text-foreground hover:bg-muted'}`
+              }
+            >
+              Consultar ticket
+            </NavLink>
           </nav>
 
           <div className="flex items-center gap-2">
