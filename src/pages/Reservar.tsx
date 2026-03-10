@@ -87,6 +87,11 @@ function formatBrazilPhone(value: string): string {
   return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
 }
 
+const BRAZIL_UFS = [
+  'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS', 'MG',
+  'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO',
+] as const;
+
 export default function Reservar() {
   const [searchParams] = useSearchParams();
   const [atrativos, setAtrativos] = useState<AtrativoOption[]>([]);
@@ -796,7 +801,18 @@ export default function Reservar() {
                       </div>
                       <div className="space-y-1">
                         <Label htmlFor="uf">UF</Label>
-                        <Input id="uf" value={form.uf} onChange={e => setForm(f => ({ ...f, uf: e.target.value }))} maxLength={2} required />
+                        <Select value={form.uf} onValueChange={(value) => setForm((f) => ({ ...f, uf: value }))}>
+                          <SelectTrigger id="uf">
+                            <SelectValue placeholder="UF" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {BRAZIL_UFS.map((uf) => (
+                              <SelectItem key={uf} value={uf}>
+                                {uf}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
                     </div>
                     <div className="flex items-start gap-2 pt-2">
