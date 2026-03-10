@@ -136,6 +136,7 @@ export default function Reservar() {
   const municipioId = import.meta.env.VITE_MUNICIPIO_ID as string | undefined;
   const atrativoFromQuery = searchParams.get('atrativo');
   const atrativoFromQueryNormalized = (atrativoFromQuery ?? '').trim().toLowerCase();
+  const isCamping = tipoReserva === 'camping';
 
   useEffect(() => {
     let ativo = true;
@@ -249,7 +250,6 @@ export default function Reservar() {
   const tituloTopo = atrativo
     ? `Reserve sua visita - ${atrativo.nome}`
     : 'Reserve sua visita ao atrativo';
-  const isCamping = tipoReserva === 'camping';
   const periodoSelecionadoValido = Boolean(date && (!isCamping || dateFim));
   const quantidade = Math.max(0, adultos) + Math.max(0, criancas);
   const ocupacaoAtual = atrativo
