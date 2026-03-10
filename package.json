@@ -8,6 +8,7 @@
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
+    "check:encoding": "node scripts/check-encoding.mjs",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest"

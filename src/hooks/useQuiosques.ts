@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { Quiosque, QuiosqueStatus, normalizeQuiosqueStatus } from '@/components/quiosques/types';
@@ -145,7 +145,7 @@ export function useQuiosques() {
       return;
     }
 
-    const data = await fetchQuiosques(id);
+    const data = await fetchQuiosques(id, dataConsulta || undefined);
     const mapped = data.map(mapQuiosque);
     setQuiosques(normalizeGridPositions(mapped));
     setLoading(false);
@@ -165,7 +165,7 @@ export function useQuiosques() {
         }
       } catch {
         setLoading(false);
-        toast({ title: 'Erro', description: 'Não foi possível carregar os dados de quiosques.', variant: 'destructive' });
+        toast({ title: 'Erro', description: 'Nao foi possivel carregar os dados de quiosques.', variant: 'destructive' });
       }
     };
 
@@ -177,7 +177,7 @@ export function useQuiosques() {
     setLoading(true);
     loadQuiosques(id).catch(() => {
       setLoading(false);
-      toast({ title: 'Erro', description: 'Não foi possível carregar os quiosques.', variant: 'destructive' });
+      toast({ title: 'Erro', description: 'Nao foi possivel carregar os quiosques.', variant: 'destructive' });
     });
   };
 
@@ -249,6 +249,15 @@ export function useQuiosques() {
   };
 
   useEffect(() => {
+    if (!selectedAtrativoId) return;
+    setLoading(true);
+    loadQuiosques(selectedAtrativoId).catch(() => {
+      setLoading(false);
+      toast({ title: 'Erro', description: 'Nao foi possivel carregar os quiosques.', variant: 'destructive' });
+    });
+  }, [dataConsulta]);
+
+  useEffect(() => {
     if (!selectedQuiosque) {
       setCanDeleteSelectedQuiosque(true);
       setDeleteBlockReason(null);
@@ -275,7 +284,7 @@ export function useQuiosques() {
       setSelectedQuiosque(null);
       await loadQuiosques();
     } catch {
-      toast({ title: 'Erro', description: 'Não foi possível atualizar o quiosque.', variant: 'destructive' });
+      toast({ title: 'Erro', description: 'Nao foi possivel atualizar o quiosque.', variant: 'destructive' });
     } finally {
       setSaving(false);
     }
@@ -313,9 +322,9 @@ export function useQuiosques() {
       );
 
       await Promise.all(updates);
-      toast({ title: 'Posição atualizada', description: `Q${dragged.numero} <-> Q${occupant.numero}` });
+      toast({ title: 'Posicao atualizada', description: `Q${dragged.numero} <-> Q${occupant.numero}` });
     } catch {
-      toast({ title: 'Erro', description: 'Não foi possível reposicionar.', variant: 'destructive' });
+      toast({ title: 'Erro', description: 'Nao foi possivel reposicionar.', variant: 'destructive' });
     }
 
     await loadQuiosques();
@@ -325,11 +334,11 @@ export function useQuiosques() {
     setSaving(true);
     try {
       await excluirQuiosque(id);
-      toast({ title: 'Quiosque excluído', description: 'O quiosque foi removido com sucesso.' });
+      toast({ title: 'Quiosque excluido', description: 'O quiosque foi removido com sucesso.' });
       setSelectedQuiosque(null);
       await loadQuiosques();
     } catch {
-      toast({ title: 'Erro', description: 'Não foi possível excluir o quiosque.', variant: 'destructive' });
+      toast({ title: 'Erro', description: 'Nao foi possivel excluir o quiosque.', variant: 'destructive' });
     } finally {
       setSaving(false);
     }
@@ -343,7 +352,7 @@ export function useQuiosques() {
       setSelectedQuiosque(null);
       await loadQuiosques();
     } catch {
-      toast({ title: 'Erro', description: 'NÃ£o foi possÃ­vel inativar o quiosque.', variant: 'destructive' });
+      toast({ title: 'Erro', description: 'Nao foi possivel inativar o quiosque.', variant: 'destructive' });
     } finally {
       setSaving(false);
     }
@@ -396,7 +405,7 @@ export function useQuiosques() {
       toast({ title: 'Quiosque criado', description: `Quiosque ${data.numero} adicionado com sucesso.` });
       await loadQuiosques();
     } catch {
-      toast({ title: 'Erro', description: 'Não foi possível criar o quiosque.', variant: 'destructive' });
+      toast({ title: 'Erro', description: 'Nao foi possivel criar o quiosque.', variant: 'destructive' });
     } finally {
       setSaving(false);
     }
@@ -430,3 +439,5 @@ export function useQuiosques() {
     deleteBlockReason,
   };
 }
+
+

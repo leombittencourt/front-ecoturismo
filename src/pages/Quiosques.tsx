@@ -1,9 +1,11 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { MapPin, GripVertical, Lock, Unlock, Building2, Plus } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { FilterType } from '@/components/quiosques/types';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { FilterType, QuiosqueStatus } from '@/components/quiosques/types';
 import { QuiosqueStatusCounters } from '@/components/quiosques/QuiosqueStatusCounters';
 import { QuiosqueFilters } from '@/components/quiosques/QuiosqueFilters';
 import { QuiosqueGrid } from '@/components/quiosques/QuiosqueGrid';
@@ -13,6 +15,8 @@ import { useQuiosques } from '@/hooks/useQuiosques';
 
 export default function Quiosques() {
   const [filter, setFilter] = useState<FilterType>('todos');
+  const [statusFilter, setStatusFilter] = useState<'todos' | QuiosqueStatus>('todos');
+  const [numeroFilter, setNumeroFilter] = useState('');
   const [editMode, setEditMode] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const { hasRole } = useAuth();
@@ -24,12 +28,14 @@ export default function Quiosques() {
     handleOpenDialog, handleCloseDialog, handleSaveQuiosque, handleDragEnd,
     handleCreateQuiosque, handleDeleteQuiosque, handleInativarQuiosque,
     handleDesvincularReservasQuiosque,
-    dataConsulta, dataConsultaFim,
+    dataConsulta, setDataConsulta, dataConsultaFim,
     reservaVinculada, loadingReservaVinculada,
     canDeleteSelectedQuiosque, deleteBlockReason,
   } = useQuiosques();
 
   const filtered = quiosques.filter(q => {
+    if (statusFilter !== 'todos' && q.status !== statusFilter) return false;
+    if (numeroFilter.trim() && !String(q.numero).includes(numeroFilter.trim())) return false;
     if (filter === 'churrasqueira') return q.tem_churrasqueira;
     if (filter === 'sem_churrasqueira') return !q.tem_churrasqueira;
     return true;
@@ -52,7 +58,7 @@ export default function Quiosques() {
             <MapPin className="h-6 w-6 text-primary" />
             Mapa de Quiosques
           </h1>
-          <p className="text-sm text-muted-foreground mt-1">Visualização interativa dos quiosques e seus status</p>
+          <p className="text-sm text-muted-foreground mt-1">Visualizacao interativa dos quiosques e seus status</p>
         </div>
         <div className="flex items-center gap-2">
           {isStaff && (
@@ -71,7 +77,7 @@ export default function Quiosques() {
               size="sm"
               onClick={() => setEditMode(e => !e)}
             >
-              {editMode ? <><Unlock className="h-4 w-4 mr-1.5" /> Modo Edição Ativo</> : <><Lock className="h-4 w-4 mr-1.5" /> Reorganizar Mapa</>}
+              {editMode ? <><Unlock className="h-4 w-4 mr-1.5" /> Modo Edicao Ativo</> : <><Lock className="h-4 w-4 mr-1.5" /> Reorganizar Mapa</>}
             </Button>
           )}
         </div>
@@ -97,10 +103,48 @@ export default function Quiosques() {
       {editMode && (
         <div className="bg-primary/10 border border-primary/30 rounded-lg p-3 text-sm text-primary flex items-center gap-2">
           <GripVertical className="h-4 w-4" />
-          Arraste os quiosques para reorganizar suas posições no mapa. As posições são salvas automaticamente.
+          Arraste os quiosques para reorganizar suas posicoes no mapa. As posicoes sao salvas automaticamente.
         </div>
       )}
 
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 rounded-lg border border-border bg-card p-3">
+        <div className="space-y-1">
+          <Label htmlFor="filtro-data">Data de referencia</Label>
+          <Input
+            id="filtro-data"
+            type="date"
+            value={dataConsulta}
+            onChange={(e) => setDataConsulta(e.target.value)}
+          />
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="filtro-status">Status</Label>
+          <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as 'todos' | QuiosqueStatus)}>
+            <SelectTrigger id="filtro-status">
+              <SelectValue placeholder="Todos os status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todos">Todos os status</SelectItem>
+              <SelectItem value="disponivel">Disponivel</SelectItem>
+              <SelectItem value="ocupado">Ocupado</SelectItem>
+              <SelectItem value="manutencao">Em manutencao</SelectItem>
+              <SelectItem value="bloqueado">Bloqueado</SelectItem>
+              <SelectItem value="inativo">Inativo</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="filtro-numero">Numero do quiosque</Label>
+          <Input
+            id="filtro-numero"
+            type="text"
+            inputMode="numeric"
+            placeholder="Ex.: 5"
+            value={numeroFilter}
+            onChange={(e) => setNumeroFilter(e.target.value.replace(/[^\d]/g, ''))}
+          />
+        </div>
+      </div>
       <QuiosqueStatusCounters quiosques={quiosques} />
       <QuiosqueFilters filter={filter} onFilterChange={setFilter} />
       <QuiosqueGrid quiosques={filtered} editMode={editMode} onOpenDialog={handleOpenDialog} onDragEnd={handleDragEnd} />
@@ -136,3 +180,6 @@ export default function Quiosques() {
     </div>
   );
 }
+
+
+

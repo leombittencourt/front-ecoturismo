@@ -150,8 +150,8 @@ export async function reordenarImagensAtrativo(
   await apiClient.reordenarImagensAtrativo(atrativoId, imagens);
 }
 
-export async function fetchQuiosques(atrativoId: string): Promise<QuiosqueDto[]> {
-  return apiClient.listarQuiosques(atrativoId);
+export async function fetchQuiosques(atrativoId: string, data?: string): Promise<QuiosqueDto[]> {
+  return apiClient.listarQuiosques(atrativoId, data);
 }
 
 export async function criarQuiosque(body: CriarQuiosqueRequest): Promise<QuiosqueDto> {

@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react';
+﻿import { useState, useEffect, useRef } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -52,28 +52,47 @@ function toIsoDate(value: string | null | undefined): string | null {
   if (!value) return null;
   const raw = String(value).trim();
   if (!raw) return null;
-  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+  const match = raw.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (match) return match[1];
   const d = new Date(raw);
   if (Number.isNaN(d.getTime())) return null;
-  return d.toISOString().split('T')[0];
+  return toIsoDateFromDate(d);
 }
 
+function toIsoDateFromDate(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
 function isoRange(startIso: string, endIso: string): string[] {
   const out: string[] = [];
-  const start = new Date(`${startIso}T00:00:00`);
-  const end = new Date(`${endIso}T00:00:00`);
+  const start = new Date(`${startIso}T12:00:00`);
+  const end = new Date(`${endIso}T12:00:00`);
   if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || start > end) return out;
 
   const cur = new Date(start);
   while (cur <= end) {
-    out.push(cur.toISOString().split('T')[0]);
+    out.push(toIsoDateFromDate(cur));
     cur.setDate(cur.getDate() + 1);
   }
   return out;
 }
 
 function isReservaAtiva(status: unknown): boolean {
-  return String(status ?? '').toLowerCase() !== 'cancelada';
+  const normalized = String(status ?? '').trim().toLowerCase();
+  return (
+    normalized === 'confirmada' ||
+    normalized === 'validada' ||
+    normalized === 'emandamento' ||
+    normalized === 'em_andamento' ||
+    normalized === 'em-andamento'
+  );
+}
+
+function localToday(): Date {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate());
 }
 
 function onlyDigits(value: string): string {
@@ -96,7 +115,7 @@ export default function Reservar() {
   const [searchParams] = useSearchParams();
   const [atrativos, setAtrativos] = useState<AtrativoOption[]>([]);
   const [selectedAtrativo, setSelectedAtrativo] = useState('');
-  const [date, setDate] = useState<Date | undefined>();
+  const [date, setDate] = useState<Date | undefined>(() => localToday());
   const [dateFim, setDateFim] = useState<Date | undefined>();
   const [tipoReserva, setTipoReserva] = useState<'day_use' | 'camping'>('day_use');
   const [step, setStep] = useState<1 | 2 | 3>(1);
@@ -112,6 +131,7 @@ export default function Reservar() {
   const [ocupacaoPeriodoPorAtrativo, setOcupacaoPeriodoPorAtrativo] = useState<Record<string, number>>({});
   const [quiosques, setQuiosques] = useState<QuiosqueOption[]>([]);
   const [selectedQuiosque, setSelectedQuiosque] = useState<string | null>(null);
+  const ocupacaoCalcSeqRef = useRef(0);
   const { toast } = useToast();
   const municipioId = import.meta.env.VITE_MUNICIPIO_ID as string | undefined;
   const atrativoFromQuery = searchParams.get('atrativo');
@@ -192,7 +212,8 @@ export default function Reservar() {
 
     const loadQuiosques = async () => {
       try {
-        const data = await apiClient.listarQuiosques(selectedAtrativo);
+        const dataReferencia = date ? toIsoDateFromDate(date) : undefined;
+        const data = await apiClient.listarQuiosques(selectedAtrativo, dataReferencia);
         if (!ativo) return;
 
         const mapped: QuiosqueOption[] = (data ?? [])
@@ -222,7 +243,7 @@ export default function Reservar() {
     return () => {
       ativo = false;
     };
-  }, [selectedAtrativo, toast]);
+  }, [selectedAtrativo, date, dateFim, isCamping, toast]);
 
   const atrativo = atrativos.find(a => a.id === selectedAtrativo);
   const tituloTopo = atrativo
@@ -293,9 +314,9 @@ export default function Reservar() {
         return;
       }
 
-      const inicioIso = date.toISOString().split('T')[0];
+      const inicioIso = toIsoDateFromDate(date);
       const fimSelecionado = isCamping && dateFim ? dateFim : date;
-      const fimIso = fimSelecionado.toISOString().split('T')[0];
+      const fimIso = toIsoDateFromDate(fimSelecionado);
       const diasSelecionados = isoRange(inicioIso, fimIso);
 
       if (diasSelecionados.length === 0) {
@@ -304,41 +325,57 @@ export default function Reservar() {
       }
 
       try {
-        const entries = await Promise.all(
-          atrativos.map(async (a) => {
-            try {
-              const reservas = await apiClient.listarReservasPorAtrativo(a.id);
-              let maiorOcupacao = 0;
-
-              for (const dia of diasSelecionados) {
-                const ocupacaoDia = (reservas ?? []).reduce((acc, r: any) => {
-                  if (!isReservaAtiva(r.status)) return acc;
-
-                  const reservaInicio = toIsoDate(r.data);
-                  const reservaFim = toIsoDate(r.dataFim) ?? reservaInicio;
-                  if (!reservaInicio || !reservaFim) return acc;
-
-                  if (dia >= reservaInicio && dia <= reservaFim) {
-                    return acc + Number(r.quantidadePessoas ?? r.quantidade_pessoas ?? 1);
-                  }
-                  return acc;
-                }, 0);
-
-                maiorOcupacao = Math.max(maiorOcupacao, ocupacaoDia);
-              }
-
-              return [a.id, maiorOcupacao] as const;
-            } catch {
-              return [a.id, a.ocupacao_atual] as const;
-            }
-          })
-        );
-
+        const requestSeq = ++ocupacaoCalcSeqRef.current;
+        const reservas = await apiClient.listarReservas();
         if (!ativo) return;
-        setOcupacaoPeriodoPorAtrativo(Object.fromEntries(entries));
+        if (requestSeq !== ocupacaoCalcSeqRef.current) return;
+
+        const atrativoIds = new Set(atrativos.map((a) => String(a.id)));
+        const ocupacaoPorDiaAtrativo = new Map<string, Map<string, number>>();
+
+        for (const reserva of reservas ?? []) {
+          const status = (reserva as any).status ?? (reserva as any).Status;
+          if (!isReservaAtiva(status)) continue;
+
+          const atrativoId = String((reserva as any).atrativoId ?? (reserva as any).AtrativoId ?? '').trim();
+          if (!atrativoId || !atrativoIds.has(atrativoId)) continue;
+
+          const reservaInicio = toIsoDate((reserva as any).data ?? (reserva as any).Data);
+          const reservaFim = toIsoDate((reserva as any).dataFim ?? (reserva as any).DataFim) ?? reservaInicio;
+          if (!reservaInicio || !reservaFim) continue;
+
+          const quantidade = Number(
+            (reserva as any).quantidadePessoas ??
+            (reserva as any).QuantidadePessoas ??
+            (reserva as any).quantidade_pessoas ??
+            1
+          ) || 0;
+          if (quantidade <= 0) continue;
+
+          for (const dia of diasSelecionados) {
+            if (dia < reservaInicio || dia > reservaFim) continue;
+            const byDay = ocupacaoPorDiaAtrativo.get(atrativoId) ?? new Map<string, number>();
+            byDay.set(dia, (byDay.get(dia) ?? 0) + quantidade);
+            ocupacaoPorDiaAtrativo.set(atrativoId, byDay);
+          }
+        }
+
+        const next: Record<string, number> = {};
+        for (const a of atrativos) {
+          const byDay = ocupacaoPorDiaAtrativo.get(String(a.id));
+          let maiorOcupacao = 0;
+          if (byDay) {
+            for (const dia of diasSelecionados) {
+              maiorOcupacao = Math.max(maiorOcupacao, byDay.get(dia) ?? 0);
+            }
+          }
+          next[a.id] = maiorOcupacao;
+        }
+
+        setOcupacaoPeriodoPorAtrativo(next);
       } catch {
         if (!ativo) return;
-        setOcupacaoPeriodoPorAtrativo({});
+        // Nao sobrescreve com fallback inconsistente se a consulta falhar.
       }
     };
 
@@ -374,8 +411,8 @@ export default function Reservar() {
 
     setLoading(true);
     const fallbackToken = `ECO-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
-    const dataStr = date.toISOString().split('T')[0];
-    const dataFimStr = isCamping && dateFim ? dateFim.toISOString().split('T')[0] : null;
+    const dataStr = toIsoDateFromDate(date);
+    const dataFimStr = isCamping && dateFim ? toIsoDateFromDate(dateFim) : null;
 
     try {
       const created = await apiClient.criarReserva({
@@ -458,7 +495,7 @@ export default function Reservar() {
                 <Link to={`/ticket/${confirmacao.token}`}>
                   <Button variant="outline" className="w-full">Ver Ticket Online</Button>
                 </Link>
-                <Button onClick={() => { setConfirmacao(null); setForm({ nome: '', email: '', celular: '', cidade: '', uf: '' }); setDate(undefined); setDateFim(undefined); setSelectedAtrativo(''); setAdultos(1); setCriancas(0); setStep(1); setLgpdAccepted(false); setSelectedQuiosque(null); }} variant="ghost">
+                <Button onClick={() => { setConfirmacao(null); setForm({ nome: '', email: '', celular: '', cidade: '', uf: '' }); setDate(localToday()); setDateFim(undefined); setSelectedAtrativo(''); setAdultos(1); setCriancas(0); setStep(1); setLgpdAccepted(false); setSelectedQuiosque(null); }} variant="ghost">
                   Nova Reserva
                 </Button>
               </div>
@@ -908,6 +945,4 @@ export default function Reservar() {
     </div>
   );
 }
-
-
 

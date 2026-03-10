@@ -813,8 +813,12 @@ export const apiClient = {
     }),
 
   // Quiosques
-  listarQuiosques: (atrativoId: string) =>
-    http.get<QuiosqueDto[]>(`/quiosques-atrativo/${encodeURIComponent(atrativoId)}`),
+  listarQuiosques: (atrativoId: string, data?: string) =>
+    http.get<QuiosqueDto[]>(
+      `/quiosques-atrativo/${encodeURIComponent(atrativoId)}${
+        data ? `?data=${encodeURIComponent(data)}` : ""
+      }`
+    ),
 
   criarQuiosque: (body: CriarQuiosqueRequest) => http.post<QuiosqueDto>("/quiosques", body),
 
